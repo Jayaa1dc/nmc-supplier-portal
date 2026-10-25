@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NMC Procurement: Supplier Directory</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --ink: #18181b;
+    --muted: #71717a;
+    --line: #e4e4e7;
+    --surface: #ffffff;
+    --canvas: #fafafa;
+  }
+  body { background: var(--canvas); color: var(--ink); }
+
+  /* Surfaces */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .field { width: 100%; border-radius: .75rem; border: 1px solid #d4d4d8; background: #fff; padding: .55rem .75rem; font-size: .875rem; color: var(--ink);
+           transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out); }
+  .field::placeholder { color: #a1a1aa; }
+  .field:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(24,24,27,.08); }
+  .field[readonly] { background: #f4f4f5; color: var(--muted); }
+  .label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* Buttons: press feedback on transform only */
+  .btn { border-radius: .75rem; background: var(--ink); color: #fff; padding: .55rem 1rem; font-size: .875rem; font-weight: 600;
+         transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+  .btn:active { transform: scale(.97); }
+  .btn-ghost { border-radius: .75rem; border: 1px solid #d4d4d8; background: #fff; color: var(--ink); padding: .55rem 1rem; font-size: .875rem; font-weight: 500;
+               transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+  .btn-ghost:active { transform: scale(.97); }
+  .btn-danger { border-radius: .75rem; border: 1px solid #fecaca; background: #fff; color: #dc2626; padding: .55rem 1rem; font-size: .875rem; font-weight: 600;
+                transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out); }
+  .btn-danger:active { transform: scale(.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn:hover { background: #27272a; }
+    .btn-ghost:hover { background: #f4f4f5; }
+    .btn-danger:hover { background: #fef2f2; }
+    .lift:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(0,0,0,.12); border-color: #d4d4d8; }
+    .row:hover { background: #fafafa; }
+    .nav:hover { background: #f4f4f5; }
+  }
+  .lift { transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out); }
+  .lift:active { transform: scale(.99); }
+  .row { transition: background-color 160ms var(--ease-out); }
+  .nav { border-radius: .75rem; padding: .6rem .9rem; font-size: .875rem; font-weight: 500; color: #52525b;
+         transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+  .nav.active { background: #f4f4f5; color: var(--ink); font-weight: 600; }
+
+  /* View change: starts at 0.985 (never 0), fades and unblurs */
+  .view { transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out), filter 240ms var(--ease-out); }
+  .view.enter { opacity: 0; transform: scale(.985) translateY(6px); filter: blur(4px); }
+
+  /* Stagger: translate property keeps transform free for hover */
+  .stagger > * { opacity: 0; translate: 0 10px;
+                 transition: opacity 320ms var(--ease-out), translate 320ms var(--ease-out);
+                 transition-delay: calc(var(--i, 0) * 45ms); }
+  .stagger.show > * { opacity: 1; translate: 0 0; }
+
+  /* Segmented control: moving on screen, so ease-in-out */
+  .seg-wrap { background: #f4f4f5; border: 1px solid var(--line); }
+  .pill { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 9999px; background: #fff;
+          box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.04);
+          transition: transform 260ms var(--ease-in-out), width 260ms var(--ease-in-out); }
+  .seg { position: relative; z-index: 1; color: var(--muted); transition: color 200ms var(--ease-out); }
+  .seg.on { color: var(--ink); }
+
+  /* Drawer: enters with iOS curve, exits faster */
+  .drawer { transition: transform 280ms var(--ease-drawer); }
+  .drawer.closed { transform: translateX(100%); }
+  .drawer.closing { transition-duration: 200ms; }
+  .drawer.instant { transition: none !important; }
+  .scrim { transition: opacity 280ms var(--ease-out); }
+  .scrim.off { opacity: 0; pointer-events: none; }
+
+  /* Modal: centered, so origin stays center. Enters from 0.96 with opacity */
+  .modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; }
+  .modal .backdrop { position: absolute; inset: 0; background: rgba(24,24,27,.35); transition: opacity 200ms var(--ease-out); }
+  .modal .box { position: relative; width: min(420px, calc(100vw - 2rem)); border-radius: 1.25rem; background: #fff; padding: 1.5rem;
+                box-shadow: 0 24px 60px -12px rgba(0,0,0,.25); transform-origin: center;
+                transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); }
+  .modal.off { pointer-events: none; }
+  .modal.off .backdrop { opacity: 0; }
+  .modal.off .box { opacity: 0; transform: scale(.96); }
+
+  /* Toast */
+  .toast { transition: transform 360ms var(--ease-out), opacity 360ms var(--ease-out); }
+  .toast.off { transform: translateY(16px); opacity: 0; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .view, .stagger > *, .drawer, .pill, .toast, .scrim, .modal .box, .modal .backdrop { transition-duration: 1ms !important; transition-delay: 0ms !important; }
+    .view.enter, .stagger > * { transform: none !important; translate: none !important; filter: none !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+<div class="grid min-h-screen lg:grid-cols-[232px_1fr]">
+
+  <aside class="flex flex-col gap-8 border-b border-[var(--line)] bg-white p-6 lg:border-b-0 lg:border-r">
+    <div>
+      <p class="label">NMC</p>
+      <p class="text-lg font-bold tracking-tight">Procurement</p>
+    </div>
+    <nav class="flex flex-wrap gap-1 lg:flex-col">
+      <a href="#/dashboard" data-match="#/dashboard" class="nav">Dashboard</a>
+      <a href="#/category/pharmacy" data-match="#/category" class="nav">Categories</a>
+    </nav>
+    <a href="#/supplier/new" class="btn text-center">+ New supplier</a>
+    <div class="mt-auto space-y-3">
+      <button onclick="askReset()" class="btn-ghost w-full text-xs">Reset demo data</button>
+      <p class="text-[11px] text-[var(--muted)]">Changes are saved in this browser.</p>
+    </div>
+  </aside>
+
+  <main class="mx-auto w-full max-w-6xl p-6 lg:p-10">
+    <div id="view" class="view"></div>
+  </main>
+</div>
+
+<!-- Drawer: add / edit supplier -->
+<div id="drawerScrim" class="scrim off fixed inset-0 z-30 bg-zinc-900/30" onclick="closeDrawer()"></div>
+<aside id="drawer" role="dialog" aria-modal="true" class="drawer closed fixed right-0 top-0 z-40 h-full w-full max-w-xl overflow-y-auto border-l border-[var(--line)] bg-white p-7 shadow-2xl"></aside>
+
+<!-- Confirm modal -->
+<div id="modal" class="modal off" role="alertdialog" aria-modal="true">
+  <div class="backdrop" onclick="closeModal()"></div>
+  <div class="box">
+    <h3 id="mTitle" class="text-lg font-bold"></h3>
+    <p id="mText" class="mt-2 text-sm text-[var(--muted)]"></p>
+    <div class="mt-6 flex justify-end gap-2">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button id="mOk" class="btn-danger" onclick="confirmYes()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast off fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-xl"></div>
+
+<script>
+// ---------- Data (saved in this browser's localStorage) ----------
+const KEY = "nmc-suppliers-v3";
+const CATS = { pharmacy: "Pharmacy", lab: "Lab", stores: "General Stores" };
+const SEED = [
+  { id:1, code:"SP00000108", name:"Lanka Pharma Distributors (Pvt) Ltd", cat:"pharmacy", status:"approved", branches:["Battaramulla","Ja-Ela"], contact:"K. Perera", phone:"0112 345 678", email:"sales@lpd.example",
+    items:[ {desc:"Paracetamol 500mg (1000)", unit:"Box", price:2450, updated:"2026-10-02"}, {desc:"Amoxicillin 250mg caps", unit:"Box", price:3900, updated:"2026-10-05"} ] },
+  { id:2, code:"SP00000231", name:"Nova Medicines", cat:"pharmacy", status:"pending", branches:["Kiribathgoda"], contact:"R. Silva", phone:"0114 556 210", email:"", items:[] },
+  { id:3, code:"SP00000603", name:"Kirillawala Lab Chemicals", cat:"lab", status:"approved", branches:["Kirillawala","Peliyagoda"], contact:"N. Bandara", phone:"011 288 3000", email:"lab@klc.example",
+    items:[ {desc:"Reagent solution 1L", unit:"Bottle", price:6800, updated:"2026-10-08"}, {desc:"Sterile saline 500ml", unit:"Bottle", price:320, updated:"2026-10-08"} ] },
+  { id:4, code:"SP00000377", name:"Sterile Lab Supplies", cat:"lab", status:"pending", branches:["Panadura"], contact:"M. Fernando", phone:"0382 221 900", email:"", items:[] },
+  { id:5, code:"SP00000452", name:"Ceylon Office Systems", cat:"stores", status:"approved", branches:["Kiribathgoda"], contact:"S. Jayasena", phone:"0114 556 210", email:"info@cos.example",
+    items:[ {desc:"A4 copy paper (500)", unit:"Ream", price:1100, updated:"2026-10-10"} ] },
+  { id:6, code:"SP00000519", name:"Panadura Hardware Center", cat:"stores", status:"pending", branches:["Panadura"], contact:"A. Dias", phone:"0382 221 900", email:"", items:[] },
+  { id:7, code:"SP00000577", name:"Quick Print Lanka", cat:"stores", status:"rejected", branches:[], contact:"A. Dias", phone:"077 000 1122", email:"quickprint@qpl.example", items:[] },
+];
+
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+  return JSON.parse(JSON.stringify(SEED));
+}
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+let S = load();
+let nextId = Math.max(0, ...S.map(s => s.id)) + 1;
+let editingId = null;
+let rows = [];
+let pendingAction = null;
+
+// ---------- Helpers ----------
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = n => Number(n).toLocaleString("en-LK", { minimumFractionDigits: 2 });
+const catList = k => S.filter(s => s.cat === k);
+const avgPrice = s => s.items.length ? s.items.reduce((a, i) => a + i.price, 0) / s.items.length : 0;
+const lastUpdate = s => s.items.map(i => i.updated).sort().pop() || "—";
+const today = () => new Date().toISOString().slice(0, 10);
+const findS = id => S.find(x => x.id === id);
+
+const badge = st => {
+  const m = {
+    approved: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    pending: "bg-amber-50 text-amber-700 ring-amber-200",
+    rejected: "bg-red-50 text-red-700 ring-red-200",
+  };
+  return `<span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${m[st]}">${st}</span>`;
+};
+const kpi = (label, value, sub = "") => `
+  <div class="card p-5">
+    <p class="label">${label}</p>
+    <p class="mt-2 text-2xl font-bold tracking-tight">${value}</p>
+    ${sub ? `<p class="mt-1 text-xs text-[var(--muted)]">${sub}</p>` : ""}
+  </div>`;
+
+// ---------- Views ----------
+function dashboardView() {
+  const total = S.length;
+  const approved = S.filter(s => s.status === "approved").length;
+  const pending = S.filter(s => s.status === "pending").length;
+  const priceItems = S.reduce((a, s) => a + s.items.length, 0);
+
+  const cards = Object.entries(CATS).map(([k, n], i) => {
+    const list = catList(k);
+    const ap = list.filter(s => s.status === "approved").length;
+    const priced = list.filter(s => s.items.length).length;
+    return `
+      <a href="#/category/${k}" class="lift card block p-6" style="--i:${i}">
+        <p class="label">${n}</p>
+        <p class="mt-3 text-4xl font-bold tracking-tight">${list.length}</p>
+        <p class="mt-1 text-sm text-[var(--muted)]">suppliers · ${ap} approved · ${priced} with prices</p>
+        <p class="mt-6 text-sm font-semibold">Open category →</p>
+      </a>`;
+  }).join("");
+
+  const pendingList = S.filter(s => s.status === "pending").map((s, i) => `
+    <a href="#/supplier/${s.id}" class="row flex items-center justify-between gap-4 px-6 py-4" style="--i:${i}">
+      <div><p class="font-semibold">${esc(s.name)}</p><p class="font-mono text-xs text-[var(--muted)]">${s.code}</p></div>
+      ${badge(s.status)}
+    </a>`).join("") || `<p class="px-6 py-10 text-center text-sm text-[var(--muted)]">Nothing waiting for review.</p>`;
+
+  return `
+    <header class="mb-8">
+      <p class="label">Overview</p>
+      <h1 class="mt-1 text-3xl font-bold tracking-tight">Dashboard</h1>
+    </header>
+    <section class="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      ${kpi("Total suppliers", total)}
+      ${kpi("Approved", approved)}
+      ${kpi("Pending review", pending)}
+      ${kpi("Price items", priceItems)}
+    </section>
+    <h2 class="label mb-4 mt-10">Categories</h2>
+    <section class="stagger grid gap-4 md:grid-cols-3">${cards}</section>
+    <h2 class="label mb-4 mt-10">Waiting for review</h2>
+    <section class="stagger card divide-y divide-[var(--line)] overflow-hidden p-0">${pendingList}</section>`;
+}
+
+function categoryView(k) {
+  if (!CATS[k]) k = "pharmacy";
+  const list = catList(k);
+  const segs = Object.entries(CATS).map(([key, n]) =>
+    `<a href="#/category/${key}" class="seg rounded-full px-5 py-2 text-sm font-semibold ${key === k ? "on" : ""}">${n}</a>`
+  ).join("");
+
+  const cards = list.map((s, i) => `
+    <a href="#/supplier/${s.id}" class="lift card block p-5 text-left" style="--i:${i}">
+      <div class="flex items-start justify-between gap-3">
+        <p class="font-mono text-xs font-semibold text-[var(--muted)]">${s.code}</p>
+        ${badge(s.status)}
+      </div>
+      <p class="mt-3 font-semibold leading-snug">${esc(s.name)}</p>
+      <p class="mt-2 text-xs text-[var(--muted)]">${s.items.length} price items · ${esc(s.branches.join(", ")) || "No branch"}</p>
+    </a>`).join("") || `<div class="col-span-full card p-12 text-center text-sm text-[var(--muted)]">No suppliers in ${CATS[k]} yet.</div>`;
+
+  return `
+    <div class="mx-auto max-w-3xl text-center">
+      <p class="label">Category</p>
+      <h1 class="mt-2 text-4xl font-bold tracking-tight">${CATS[k]}</h1>
+      <p class="mt-2 text-sm text-[var(--muted)]">${list.length} suppliers</p>
+      <div id="segWrap" class="seg-wrap relative mx-auto mt-8 inline-flex rounded-full p-1">
+        <span id="pill" class="pill"></span>${segs}
+      </div>
+      <div class="mt-6"><a href="#/supplier/new" class="btn">+ Add supplier to ${CATS[k]}</a></div>
+    </div>
+    <section class="stagger mx-auto mt-12 grid max-w-4xl gap-4 sm:grid-cols-2">${cards}</section>`;
+}
+
+function profileView(id) {
+  const s = findS(id);
+  if (!s) return `<p class="text-[var(--muted)]">Supplier not found.</p><a href="#/dashboard" class="font-semibold">Back to dashboard</a>`;
+
+  const priceRows = s.items.map((it, i) => `
+    <div class="row flex flex-wrap items-center gap-4 px-6 py-4" style="--i:${i}">
+      <div class="min-w-[220px] flex-1">
+        <p class="font-semibold">${esc(it.desc)}</p>
+        <p class="text-xs text-[var(--muted)]">Unit: ${esc(it.unit)} · Updated ${it.updated}</p>
+      </div>
+      <p class="text-lg font-bold tabular-nums">LKR ${money(it.price)}</p>
+    </div>`).join("") || `<p class="px-6 py-12 text-center text-sm text-[var(--muted)]">No price list yet. Edit this supplier to add prices.</p>`;
+
+  return `
+    <a href="#/category/${s.cat}" class="text-sm text-[var(--muted)] hover:text-[var(--ink)]">← ${CATS[s.cat]}</a>
+    <section class="card mt-4 p-7">
+      <div class="flex flex-wrap items-start justify-between gap-6">
+        <div class="space-y-3">
+          <p class="font-mono text-sm font-semibold text-[var(--muted)]">${s.code}</p>
+          <h1 class="text-3xl font-bold tracking-tight">${esc(s.name)}</h1>
+          <div class="flex flex-wrap items-center gap-2">
+            ${badge(s.status)}
+            <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">${CATS[s.cat]}</span>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select class="field w-40" onchange="setStatus(${s.id}, this.value)" aria-label="Status">
+            ${["pending","approved","rejected"].map(st => `<option value="${st}" ${s.status === st ? "selected" : ""}>${st[0].toUpperCase() + st.slice(1)}</option>`).join("")}
+          </select>
+          <button class="btn-ghost" onclick="openDrawer(${s.id})">Edit</button>
+          <button class="btn-danger" onclick="askDelete(${s.id})">Delete</button>
+        </div>
+      </div>
+      <div class="stagger mt-8 grid gap-4 sm:grid-cols-3">
+        ${kpi("Price items", s.items.length)}
+        ${kpi("Avg unit price", s.items.length ? `LKR ${money(avgPrice(s))}` : "—")}
+        ${kpi("Last price update", lastUpdate(s))}
+      </div>
+    </section>
+
+    <section class="card mt-8 overflow-hidden p-0">
+      <div class="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
+        <h2 class="font-bold">Price list</h2>
+        <p class="text-xs text-[var(--muted)]">${s.items.length} items</p>
+      </div>
+      <div class="divide-y divide-[var(--line)]">${priceRows}</div>
+    </section>
+
+    <section class="card mt-8 grid gap-6 p-7 sm:grid-cols-2">
+      ${[["Contact", s.contact], ["Phone", s.phone], ["Email", s.email || "—"], ["Branches", s.branches.join(", ") || "—"]]
+        .map(([l, v]) => `<div><p class="label">${l}</p><p class="mt-1">${esc(v)}</p></div>`).join("")}
+    </section>`;
+}
+
+// ---------- Router ----------
+function render(animate = true) {
+  const parts = (location.hash.replace(/^#/, "") || "/dashboard").split("/").filter(Boolean);
+  let html, openNew = false;
+  if (parts[0] === "category") html = categoryView(parts[1]);
+  else if (parts[0] === "supplier" && parts[1] === "new") { html = dashboardView(); openNew = true; }
+  else if (parts[0] === "supplier") html = profileView(Number(parts[1]));
+  else html = dashboardView();
+
+  mount(html, animate);
+  placePill();
+  document.querySelectorAll(".nav").forEach(a => a.classList.toggle("active", location.hash.startsWith(a.dataset.match)));
+  if (openNew) openDrawer(null);
+}
+
+function mount(html, animate) {
+  const v = document.getElementById("view");
+  if (!animate) {
+    v.classList.remove("enter");
+    v.innerHTML = html;
+    v.querySelectorAll(".stagger").forEach(el => el.classList.add("show"));
+    return;
+  }
+  v.classList.add("enter");
+  v.innerHTML = html;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    v.classList.remove("enter");
+    v.querySelectorAll(".stagger").forEach(el => el.classList.add("show"));
+  }));
+}
+
+function placePill() {
+  const active = document.querySelector(".seg.on");
+  const pill = document.getElementById("pill");
+  if (!active || !pill) return;
+  pill.style.width = active.offsetWidth + "px";
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+
+// ---------- Drawer: add / edit ----------
+function openDrawer(id) {
+  editingId = id ?? null;
+  const s = id ? findS(id) : null;
+  rows = s ? s.items.map(i => ({ desc: i.desc, unit: i.unit, price: String(i.price), updated: i.updated })) : [{ desc: "", unit: "Each", price: "", updated: today() }];
+  const d = document.getElementById("drawer");
+  d.innerHTML = formHTML(s);
+  d.classList.remove("closed", "closing", "instant");
+  document.getElementById("drawerScrim").classList.remove("off");
+  renderRows();
+  document.getElementById("sForm").addEventListener("submit", submitForm);
+}
+
+function closeDrawer(instant = false) {
+  const d = document.getElementById("drawer");
+  if (instant) d.classList.add("instant"); else d.classList.add("closing");
+  d.classList.add("closed");
+  document.getElementById("drawerScrim").classList.add("off");
+  setTimeout(() => d.classList.remove("instant", "closing"), 300);
+}
+
+function formHTML(s) {
+  const cat = s ? s.cat : "pharmacy";
+  return `
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <p class="label">${s ? "Edit supplier" : "New supplier"}</p>
+        <h2 class="mt-1 text-2xl font-bold tracking-tight">${s ? esc(s.name) : "Add to directory"}</h2>
+      </div>
+      <button type="button" class="btn-ghost" onclick="closeDrawer()">Close</button>
+    </div>
+    <form id="sForm" class="mt-8 space-y-6" novalidate>
+      <div class="grid gap-5 sm:grid-cols-2">
+        <label class="block space-y-1.5"><span class="label">HIS supplier code</span>
+          <input name="code" class="field font-mono" value="${esc(s?.code)}" placeholder="SP00000000" ${s ? "readonly" : ""}>
+          ${s ? "" : `<span class="text-xs text-[var(--muted)]">Use the existing HIS code. It cannot be changed later.</span>`}</label>
+        <label class="block space-y-1.5"><span class="label">Status</span>
+          <select name="status" class="field">${["pending","approved","rejected"].map(st => `<option value="${st}" ${s?.status === st ? "selected" : ""}>${st[0].toUpperCase() + st.slice(1)}</option>`).join("")}</select></label>
+        <label class="block space-y-1.5 sm:col-span-2"><span class="label">Company name</span>
+          <input name="name" class="field" value="${esc(s?.name)}"></label>
+        <label class="block space-y-1.5"><span class="label">Category</span>
+          <select name="cat" class="field">${Object.entries(CATS).map(([k, n]) => `<option value="${k}" ${k === cat ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+        <label class="block space-y-1.5"><span class="label">Branches</span>
+          <input name="branches" class="field" value="${esc(s?.branches.join(", "))}" placeholder="Battaramulla, Ja-Ela"></label>
+        <label class="block space-y-1.5"><span class="label">Contact person</span>
+          <input name="contact" class="field" value="${esc(s?.contact)}"></label>
+        <label class="block space-y-1.5"><span class="label">Phone</span>
+          <input name="phone" class="field" value="${esc(s?.phone)}"></label>
+        <label class="block space-y-1.5 sm:col-span-2"><span class="label">Email</span>
+          <input name="email" type="email" class="field" value="${esc(s?.email)}"></label>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between">
+          <p class="label">Price list</p>
+          <button type="button" class="btn-ghost" onclick="addRow()">+ Add row</button>
+        </div>
+        <div id="rows" class="mt-3 space-y-2"></div>
+        <p class="mt-2 text-xs text-[var(--muted)]">Removing a row deletes that price item when you save.</p>
+      </div>
+
+      <p id="formErr" role="alert" class="min-h-[1.25rem] text-sm text-red-600"></p>
+      <div class="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-6">
+        ${s ? `<button type="button" class="btn-danger" onclick="askDelete(${s.id})">Delete supplier</button>` : `<span></span>`}
+        <div class="flex gap-2">
+          <button type="button" class="btn-ghost" onclick="closeDrawer()">Cancel</button>
+          <button type="submit" class="btn">${s ? "Save changes" : "Add supplier"}</button>
+        </div>
+      </div>
+    </form>`;
+}
+
+function syncRows() {
+  document.querySelectorAll("#rows [data-i]").forEach(el => { rows[Number(el.dataset.i)][el.dataset.k] = el.value; });
+}
+function renderRows() {
+  const box = document.getElementById("rows");
+  if (!box) return;
+  box.innerHTML = rows.map((r, i) => `
+    <div class="grid grid-cols-[1fr_72px_116px_auto] items-center gap-2">
+      <input class="field" data-i="${i}" data-k="desc" value="${esc(r.desc)}" placeholder="Description">
+      <input class="field" data-i="${i}" data-k="unit" value="${esc(r.unit)}">
+      <input class="field text-right" type="number" step="0.01" min="0" data-i="${i}" data-k="price" value="${esc(r.price)}" placeholder="LKR">
+      <button type="button" class="btn-ghost" onclick="removeRow(${i})">Remove</button>
+    </div>`).join("");
+}
+function addRow() { syncRows(); rows.push({ desc: "", unit: "Each", price: "", updated: today() }); renderRows(); }
+function removeRow(i) { syncRows(); rows.splice(i, 1); if (!rows.length) rows.push({ desc: "", unit: "Each", price: "", updated: today() }); renderRows(); }
+function setErr(msg) { document.getElementById("formErr").textContent = msg; }
+
+function submitForm(e) {
+  e.preventDefault();
+  syncRows();
+  const d = Object.fromEntries(new FormData(e.target));
+  const code = editingId ? findS(editingId).code : String(d.code || "").trim().toUpperCase();
+
+  if (!editingId && !/^SP\d{8}$/.test(code)) return setErr("HIS code must be SP followed by 8 digits, e.g. SP00000108.");
+  if (!editingId && S.some(x => x.code === code)) return setErr(`HIS code ${code} is already in the directory.`);
+  if (String(d.name || "").trim().length < 2) return setErr("Company name is required.");
+  if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) return setErr("Email address is not valid.");
+
+  const before = editingId ? findS(editingId).items : [];
+  const items = [];
+  for (const r of rows) {
+    if (!r.desc.trim() && r.price === "") continue;
+    const price = Number(r.price);
+    if (!r.desc.trim() || r.price === "" || !Number.isFinite(price) || price < 0) return setErr("Each price row needs a description and a price of 0 or more.");
+    // Keep the old "updated" date when the price did not change
+    const old = before.find(b => b.desc === r.desc.trim() && b.price === price);
+    items.push({ desc: r.desc.trim(), unit: r.unit.trim() || "Each", price, updated: old ? old.updated : today() });
+  }
+
+  const record = {
+    name: String(d.name).trim(), cat: d.cat, status: d.status,
+    branches: String(d.branches || "").split(",").map(b => b.trim()).filter(Boolean),
+    contact: String(d.contact || "").trim(), phone: String(d.phone || "").trim(), email: String(d.email || "").trim(),
+    items,
+  };
+
+  let targetId;
+  if (editingId) {
+    Object.assign(findS(editingId), record);
+    targetId = editingId;
+  } else {
+    targetId = nextId++;
+    S.push({ id: targetId, code, ...record });
+  }
+  persist();
+  closeDrawer();
+  toast(editingId ? "Supplier updated" : `Supplier ${code} added`);
+  const wasNew = !editingId;
+  editingId = null;
+  if (wasNew) location.hash = `#/supplier/${targetId}`;
+  else render(false);
+}
+
+// ---------- Status ----------
+function setStatus(id, st) {
+  const s = findS(id);
+  if (!s) return;
+  s.status = st;
+  persist();
+  toast(`Status set to ${st}`);
+  render(false);
+}
+
+// ---------- Delete (confirm first) ----------
+function askDelete(id) {
+  const s = findS(id);
+  if (!s) return;
+  askConfirm(`Delete ${s.code}?`, `"${s.name}" and its ${s.items.length} price items will be removed from the directory. This cannot be undone.`, "Delete", () => {
+    const cat = s.cat;
+    S = S.filter(x => x.id !== id);
+    persist();
+    closeDrawer(true);
+    toast("Supplier deleted");
+    location.hash = `#/category/${cat}`;
+    render(true);
+  });
+}
+
+function askReset() {
+  askConfirm("Reset demo data?", "All suppliers you added or changed in this browser will be replaced with the starting examples.", "Reset", () => {
+    S = JSON.parse(JSON.stringify(SEED));
+    nextId = Math.max(0, ...S.map(s => s.id)) + 1;
+    persist();
+    toast("Demo data restored");
+    location.hash = "#/dashboard";
+    render(true);
+  });
+}
+
+// ---------- Confirm modal ----------
+function askConfirm(title, text, label, fn) {
+  pendingAction = fn;
+  document.getElementById("mTitle").textContent = title;
+  document.getElementById("mText").textContent = text;
+  document.getElementById("mOk").textContent = label;
+  document.getElementById("modal").classList.remove("off");
+}
+function closeModal() { document.getElementById("modal").classList.add("off"); pendingAction = null; }
+function confirmYes() {
+  const fn = pendingAction;
+  closeModal();
+  if (fn) fn();
+}
+
+// Escape: modal first, then drawer. Closing with the keyboard is instant (no animation).
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!document.getElementById("modal").classList.contains("off")) return closeModal();
+  closeDrawer(true);
+});
+
+// ---------- Toast ----------
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("off");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add("off"), 2200);
+}
+
+window.addEventListener("hashchange", () => render(true));
+window.addEventListener("resize", placePill);
+render(true);
+</script>
+</body>
+</html>
