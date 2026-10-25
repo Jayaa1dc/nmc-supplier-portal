@@ -1,0 +1,20 @@
+export default async function ThankYou({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  const { code } = await searchParams;
+  return (
+    <div className="mx-auto max-w-lg rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <h1 className="text-xl font-semibold text-navy">Application received</h1>
+      <p className="mt-3 text-slate-600">
+        Thank you. Our Procurement Division will review your pre-qualification and contact you.
+      </p>
+      {code && (
+        <p className="mt-4 text-sm text-slate-500">
+          HIS Supplier Code: <span className="font-mono font-semibold text-navy">{code}</span>
+        </p>
+      )}
+    </div>
+  );
+}
