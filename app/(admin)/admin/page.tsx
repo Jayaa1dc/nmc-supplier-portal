@@ -1,121 +1,127 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { SUPPLIER_CATEGORIES } from '@/lib/categories';
-import { Badge, Kpi, btn, card, field } from '@/components/admin-ui';
+import { Badge, Kpi, PageHeader, card, btn, btnGhost } from '@/components/admin-ui';
+import { STATUS_LABEL } from '@/lib/approval';
 
-const STATUSES = ['pending', 'approved', 'rejected'] as const;
+const DAY = 86_400_000;
 
-export default async function Directory({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; status?: string }>;
-}) {
-  const { q = '', status = '' } = await searchParams;
+export default async function Dashboard() {
   const supabase = await createClient();
-  const term = q.replace(/[%,()*]/g, '').trim();
+  const soon = new Date(Date.now() + 30 * DAY).toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * DAY).toISOString();
 
-  let query = supabase
-    .from('suppliers')
-    .select('id, supplier_code, application_ref, company_name, status, source, categories, branches, contact_person')
-    .order('company_name')
-    .limit(500);
-  if (term) query = query.or(`supplier_code.ilike.%${term}%,company_name.ilike.%${term}%`);
-  if ((STATUSES as readonly string[]).includes(status)) query = query.eq('status', status);
-
-  const [{ data: list }, { data: all }, { data: items }] = await Promise.all([
-    query,
-    supabase.from('suppliers').select('id, status, categories'),
+  const [{ data: suppliers }, { data: items }, { data: docs }, { data: recent }, { data: updates }] = await Promise.all([
+    supabase.from('suppliers').select('id, status, is_active, company_name, supplier_code, application_ref, submitted_at'),
     supabase.from('supplier_items').select('supplier_id'),
+    supabase.from('supplier_documents').select('id, expires_on'),
+    supabase
+      .from('supplier_approval_log')
+      .select('id, to_status, reason, actor_email, created_at, suppliers(company_name, supplier_code, application_ref)')
+      .order('created_at', { ascending: false })
+      .limit(8),
+    supabase.from('supplier_items').select('id').gte('updated_at', monthAgo),
   ]);
 
-  const itemCounts = new Map<string, number>();
-  items?.forEach((i) => itemCounts.set(i.supplier_id, (itemCounts.get(i.supplier_id) ?? 0) + 1));
-
-  const total = all?.length ?? 0;
-  const approved = all?.filter((s) => s.status === 'approved').length ?? 0;
-  const pending = all?.filter((s) => s.status === 'pending').length ?? 0;
-  const withPrices = all?.filter((s) => (itemCounts.get(s.id) ?? 0) > 0).length ?? 0;
-
-  // Categories with at most one approved supplier = single-source exposure
-  const coverage = new Map<string, number>(SUPPLIER_CATEGORIES.map((c) => [c, 0]));
-  all?.forEach((s) => {
-    if (s.status !== 'approved') return;
-    (s.categories as string[]).forEach((c) => coverage.set(c, (coverage.get(c) ?? 0) + 1));
-  });
-  const thin = [...coverage].filter(([, n]) => n <= 1).length;
+  const all = suppliers ?? [];
+  const active = all.filter((s) => s.status === 'approved' && s.is_active !== false).length;
+  const openReviews = all.filter((s) => ['pending', 'under_review', 'changes_requested'].includes(s.status));
+  const pricedIds = new Set((items ?? []).map((i) => i.supplier_id));
+  const approvedNoPrices = all.filter((s) => s.status === 'approved' && !pricedIds.has(s.id)).length;
+  const expiring = (docs ?? []).filter((d) => d.expires_on && d.expires_on <= soon).length;
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Supplier directory</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">All suppliers</h1>
-        </div>
-        <Link href="/admin/import" className={btn}>+ Import data</Link>
-      </header>
+      <PageHeader eyebrow="Procurement overview" title="Dashboard">
+        <Link href="/admin/requests" className={btnGhost}>Review requests</Link>
+        <Link href="/admin/import" className={btn}>+ Import supplier data</Link>
+      </PageHeader>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Kpi label="Total suppliers" value={total} />
-        <Kpi label="Approved" value={approved} />
-        <Kpi label="Pending review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
-        <Kpi label="With price list" value={`${withPrices}/${total}`} sub={`${total - withPrices} missing prices`} />
-        <Kpi label="Single-source" value={thin} sub="categories at risk" tone={thin > 0 ? 'bad' : 'default'} />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Active suppliers" value={active} sub="Approved and active" />
+        <Kpi label="Pending approvals" value={openReviews.length} sub="Submitted, under review or changes requested" tone={openReviews.length ? 'warn' : 'default'} />
+        <Kpi label="Approved without price list" value={approvedNoPrices} sub="Add items before sourcing" tone={approvedNoPrices ? 'warn' : 'default'} />
+        <Kpi label="Documents expiring (30 days)" value={expiring} sub="Includes already expired" tone={expiring ? 'bad' : 'default'} />
       </section>
 
-      <form method="get" className={`${card} flex flex-wrap items-end gap-3`}>
-        <label className="min-w-[260px] flex-1 space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Search</span>
-          <input name="q" defaultValue={q} placeholder="HIS code or company name" className={field} />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</span>
-          <select name="status" defaultValue={status} className={field}>
-            <option value="">All</option>
-            {STATUSES.map((s) => <option key={s} value={s} className="bg-slate-900 capitalize">{s}</option>)}
-          </select>
-        </label>
-        <button type="submit" className={btn}>Apply</button>
-        <Link href="/admin" className="px-2 py-2 text-sm text-slate-400 hover:text-white">Reset</Link>
-      </form>
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className={`${card} xl:col-span-2`}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Recent activity</h2>
+            <Link href="/admin/requests" className="text-sm font-medium text-sky-700 hover:underline">View all</Link>
+          </div>
+          {(recent ?? []).length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">No approval activity yet. Activity appears here after a supplier is reviewed.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {(recent ?? []).map((r: any) => (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{r.suppliers?.company_name ?? 'Supplier'}</p>
+                    <p className="text-xs text-slate-500">
+                      {r.actor_email ?? 'System'} · {new Date(r.created_at).toLocaleString('en-GB')}
+                      {r.reason ? ` · “${r.reason}”` : ''}
+                    </p>
+                  </div>
+                  <Badge status={r.to_status} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <section className={`${card} overflow-x-auto p-0`}>
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0 bg-slate-900 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            <tr>
-              <th className="px-5 py-4">HIS code</th>
-              <th className="px-5 py-4">Company</th>
-              <th className="px-5 py-4">Branches</th>
-              <th className="px-5 py-4 text-right">Price items</th>
-              <th className="px-5 py-4">Categories</th>
-              <th className="px-5 py-4">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {list?.map((s) => (
-              <tr key={s.id} className="transition hover:bg-white/[0.04]">
-                <td className="px-5 py-4 font-mono">
-                  <Link href={`/admin/suppliers/${s.id}`} className="font-bold text-cyan-300 hover:underline">
-                    {s.supplier_code ?? 'Pending HIS code'}
+        <section className={card}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">Tasks & approvals</h2>
+            <Link href="/admin/requests" className="text-sm font-medium text-sky-700 hover:underline">View all</Link>
+          </div>
+          {openReviews.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">No supplier requests waiting for review.</p>
+          ) : (
+            <ul className="space-y-3">
+              {openReviews.slice(0, 6).map((s) => (
+                <li key={s.id}>
+                  <Link href={`/admin/suppliers/${s.id}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50/40">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">{s.company_name}</p>
+                      <p className="font-mono text-xs text-slate-500">{s.supplier_code ?? s.application_ref ?? 'No HIS code yet'}</p>
+                    </div>
+                    <Badge status={s.status} />
                   </Link>
-                </td>
-                <td className="px-5 py-4">
-                  <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-white hover:text-fuchsia-300">
-                    {s.company_name}
-                  </Link>
-                  <p className="text-xs text-slate-500">{s.contact_person ?? ''}</p>
-                </td>
-                <td className="px-5 py-4 text-slate-300">{(s.branches as string[])?.join(', ') || '—'}</td>
-                <td className="px-5 py-4 text-right tabular-nums">{itemCounts.get(s.id) ?? 0}</td>
-                <td className="px-5 py-4 text-slate-400">{(s.categories as string[]).length || '—'}</td>
-                <td className="px-5 py-4"><Badge status={s.status as 'pending' | 'approved' | 'rejected'} /></td>
-              </tr>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className={card}>
+          <h2 className="font-semibold text-slate-900">Quick actions</h2>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {[
+              ['/admin/requests', 'Review requests'],
+              ['/admin/compare', 'Compare prices'],
+              ['/admin/contacts', 'View contacts'],
+              ['/admin/documents', 'Document library'],
+              ['/admin/suppliers', 'Supplier directory'],
+              ['/admin/import', 'Import data'],
+            ].map(([href, label]) => (
+              <Link key={href} href={href} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-800 transition hover:border-sky-300 hover:bg-sky-50/40">
+                {label} <span className="float-right text-sky-600">→</span>
+              </Link>
             ))}
-            {list?.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-16 text-center text-slate-500">No suppliers match. Import a branch list to get started.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+          </div>
+          <p className="mt-4 text-xs text-slate-500">Price updates in the last 30 days: <span className="font-semibold text-slate-800">{updates?.length ?? 0}</span> item(s).</p>
+        </section>
+
+        <section className={`${card} xl:col-span-2`}>
+          <h2 className="font-semibold text-slate-900">Upcoming deliveries & supplier performance</h2>
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+            <p className="font-semibold text-slate-800">Not connected yet</p>
+            <p className="mt-1">Delivery dates and on-time performance need purchase order and goods receipt data. This data is not in the portal database yet, so no figures are shown. See the Purchase orders page for what is needed.</p>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

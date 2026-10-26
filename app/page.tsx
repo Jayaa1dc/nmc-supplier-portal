@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <h1 className="text-3xl font-semibold text-navy">Become a Nawaloka supplier</h1>
       <p className="text-slate-600">
         Register your company for pre-qualification. Use the Existing HIS Supplier Code issued

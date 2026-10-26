@@ -1,77 +1,71 @@
 import type { ReactNode } from 'react';
+import { STATUS_LABEL } from '@/lib/approval';
 
-export const field =
-  'w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-fuchsia-400 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30';
-export const btn =
-  'rounded-xl bg-gradient-to-r from-fuchsia-500 to-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 shadow-lg shadow-fuchsia-500/20 transition hover:brightness-110';
-export const btnGhost =
-  'rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10';
-export const card =
-  'rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-xl shadow-black/20 backdrop-blur-xl';
+export const field = 'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10';
+export const btn = 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60';
+export const btnGhost = 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-sky-500/10';
+export const btnDanger = 'inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-500/10';
+export const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6';
 
-export function Kpi({
-  label,
-  value,
-  sub,
-  tone = 'default',
-}: {
-  label: string;
-  value: ReactNode;
-  sub?: string;
-  tone?: 'default' | 'warn' | 'bad';
-}) {
-  const ring =
-    tone === 'bad'
-      ? 'from-rose-500 to-orange-400'
-      : tone === 'warn'
-        ? 'from-amber-400 to-pink-500'
-        : 'from-fuchsia-500 to-cyan-400';
+export function Kpi({ label, value, sub, tone = 'default' }: { label: string; value: ReactNode; sub?: string; tone?: 'default' | 'warn' | 'bad' }) {
+  const accent = tone === 'bad' ? 'border-l-rose-500' : tone === 'warn' ? 'border-l-amber-500' : 'border-l-sky-500';
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${ring} p-[1px]`}>
-      <div className="h-full rounded-2xl bg-slate-950 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
-        <p className="mt-2 text-2xl font-extrabold tracking-tight text-white">{value}</p>
-        {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
-      </div>
+    <div className={`rounded-2xl border border-slate-200 border-l-4 ${accent} bg-white p-5 shadow-sm`}>
+      <p className="text-xs font-semibold text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{value}</p>
+      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
     </div>
   );
 }
 
-export function Field({
-  label,
-  children,
-  className = '',
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
+export function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={`block space-y-1.5 ${className}`}>
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
       {children}
     </label>
   );
 }
 
-const badgeStyle = {
-  pending: 'bg-amber-400/15 text-amber-300 ring-amber-400/30',
-  approved: 'bg-emerald-400/15 text-emerald-300 ring-emerald-400/30',
-  rejected: 'bg-rose-400/15 text-rose-300 ring-rose-400/30',
-} as const;
+const badgeStyle: Record<string, string> = {
+  draft: 'bg-slate-100 text-slate-700 ring-slate-200',
+  pending: 'bg-sky-50 text-sky-800 ring-sky-200',
+  under_review: 'bg-indigo-50 text-indigo-800 ring-indigo-200',
+  changes_requested: 'bg-amber-50 text-amber-800 ring-amber-200',
+  approved: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+  rejected: 'bg-rose-50 text-rose-800 ring-rose-200',
+};
 
-export function Badge({ status }: { status: keyof typeof badgeStyle }) {
+export function Badge({ status }: { status: string }) {
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${badgeStyle[status]}`}>
-      {status}
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badgeStyle[status] ?? badgeStyle.draft}`}>
+      {STATUS_LABEL[status] ?? status}
     </span>
   );
 }
 
 export function Banner({ tone, children }: { tone: 'ok' | 'err'; children: ReactNode }) {
-  const s =
-    tone === 'ok'
-      ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
-      : 'border-rose-400/30 bg-rose-400/10 text-rose-200';
-  return <div role={tone === 'err' ? 'alert' : 'status'} className={`rounded-2xl border px-4 py-3 text-sm ${s}`}>{children}</div>;
+  const s = tone === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800';
+  return <div role={tone === 'err' ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm ${s}`}>{children}</div>;
+}
+
+export function PageHeader({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">{eyebrow}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+      </div>
+      {children && <div className="flex flex-wrap gap-2">{children}</div>}
+    </div>
+  );
+}
+
+export function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <p className="font-semibold text-slate-800">{title}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">{text}</p>
+    </div>
+  );
 }

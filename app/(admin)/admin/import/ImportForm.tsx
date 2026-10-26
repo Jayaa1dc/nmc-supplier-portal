@@ -31,7 +31,7 @@ export default function ImportForm() {
           </select>
         </label>
         <div className="flex items-end">
-          <button type="submit" disabled={pending} className="rounded-md bg-navy px-5 py-2.5 font-semibold text-white hover:bg-navy-700 disabled:opacity-60">
+          <button type="submit" disabled={pending} className="rounded-md bg-navy px-5 py-2.5 font-semibold text-slate-900 hover:bg-navy-700 disabled:opacity-60">
             {pending ? 'Importing…' : 'Import suppliers'}
           </button>
         </div>

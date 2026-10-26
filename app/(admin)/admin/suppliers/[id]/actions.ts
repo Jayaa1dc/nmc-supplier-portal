@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { SUPPLIER_CATEGORIES } from '@/lib/categories';
 import { BUSINESS_NATURES } from '@/lib/schemas';
 import { parsePriceList } from '@/lib/price-import';
+import { recordTransition } from '@/lib/approval';
 
 type Tab = 'details' | 'prices' | 'documents';
 
@@ -90,7 +91,7 @@ export async function updateSupplierDetails(id: string, formData: FormData): Pro
 
 export async function updateSupplierStatus(id: string, formData: FormData): Promise<void> {
   const schema = z.object({
-    status: z.enum(['pending', 'approved', 'rejected']),
+    status: z.enum(['draft', 'pending', 'under_review', 'changes_requested', 'approved', 'rejected']),
     review_notes: z.string().trim().max(2000).optional(),
   });
   const parsed = schema.parse({
@@ -99,10 +100,12 @@ export async function updateSupplierStatus(id: string, formData: FormData): Prom
   });
 
   const { supabase, user } = await requireUser();
+  const { data: cur } = await supabase.from('suppliers').select('status, supplier_code').eq('id', id).maybeSingle();
+  if (!cur) fail(id, 'details', 'Supplier not found');
+  if (parsed.status === cur.status) done(id, 'details', 'Status unchanged');
 
-  if (parsed.status === 'approved') {
-    const { data: current } = await supabase.from('suppliers').select('supplier_code').eq('id', id).maybeSingle();
-    if (!current?.supplier_code) fail(id, 'details', 'Enter the HIS supplier code before approving');
+  if (parsed.status === 'approved' && !cur.supplier_code) {
+    fail(id, 'details', 'Enter the HIS supplier code before approving');
   }
 
   const { error } = await supabase
@@ -114,12 +117,20 @@ export async function updateSupplierStatus(id: string, formData: FormData): Prom
       reviewed_at: new Date().toISOString(),
     })
     .eq('id', id);
-
   if (error) fail(id, 'details', error.message);
+
+  await recordTransition(supabase, {
+    supplierId: id,
+    from: cur.status,
+    to: parsed.status,
+    reason: parsed.review_notes || null,
+    userId: user.id,
+    email: user.email ?? null,
+  });
 
   revalidatePath('/admin');
   revalidatePath(base(id));
-  done(id, 'details', `Status set to ${parsed.status}`);
+  done(id, 'details', `Status set to ${parsed.status.replace('_', ' ')}`);
 }
 
 // ---------- Price list ----------

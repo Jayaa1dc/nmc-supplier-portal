@@ -3,26 +3,26 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Nawaloka Medical Centre: Supplier Registration',
-  description: 'Supplier directory and pre-qualification portal',
+  title: 'NMC Supplier Portal | Procurement Workspace',
+  description: 'Nawaloka Medical Centres supplier directory and procurement workspace',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased">
-        <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto flex max-w-5xl items-center gap-4 px-6 py-4">
+      <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+        <header className="border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-7xl items-center gap-4 px-5 py-3 lg:px-8">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/nmc-logo.webp" alt="Nawaloka Medical Centre" className="h-14 w-14 object-contain" />
+            <img src="/nmc-logo.webp" alt="Nawaloka Medical Centre" className="h-12 w-12 object-contain" />
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Nawaloka Medical Centre</p>
-              <p className="text-lg font-extrabold tracking-tight text-zinc-900">Supplier Directory &amp; Pre-Qualification</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Nawaloka Medical Centre</p>
+              <p className="text-base font-bold tracking-tight text-slate-900">Supplier Directory &amp; Pre-Qualification</p>
             </div>
           </div>
-          <div className="h-1 bg-gold" />
+          <div className="h-0.5 bg-sky-600" />
         </header>
-        <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
+        <main className="w-full px-5 py-8 lg:px-8">{children}</main>
       </body>
     </html>
   );

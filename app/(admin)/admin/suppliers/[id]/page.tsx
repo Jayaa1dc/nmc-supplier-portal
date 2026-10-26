@@ -75,34 +75,30 @@ export default async function SupplierProfile({
 
   return (
     <div className="space-y-8">
-      <Link href="/admin" className="text-sm text-slate-400 hover:text-white">← All suppliers</Link>
+      <Link href="/admin/suppliers" className="text-sm text-slate-500 hover:text-slate-900">← All suppliers</Link>
 
       {sp.ok && <Banner tone="ok">{sp.ok}</Banner>}
       {sp.err && <Banner tone="err">{sp.err}</Banner>}
 
       {/* Hero */}
       <section className={`${card} relative overflow-hidden`}>
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-fuchsia-600/25 via-transparent to-cyan-400/20" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-50 via-white to-cyan-50" />
         <div className="relative flex flex-wrap items-start justify-between gap-6">
           <div className="space-y-3">
-            <p className="font-mono text-sm font-bold text-cyan-300">{s.supplier_code ?? 'Pending HIS code'}</p>
+            <p className="font-mono text-sm font-bold text-sky-700">{s.supplier_code ?? 'Pending HIS code'}</p>
             <h1 className="text-3xl font-extrabold tracking-tight">{s.company_name}</h1>
             <div className="flex flex-wrap gap-2">
               <Badge status={s.status} />
               {s.source === 'legacy_import' && (
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-300">HIS import</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">HIS import</span>
               )}
               {cats.slice(0, 3).map((c) => (
-                <span key={c} className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">{c}</span>
+                <span key={c} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{c}</span>
               ))}
             </div>
           </div>
           <form action={setStatus} className="flex items-center gap-2">
-            <select name="status" defaultValue={s.status} className={`${field} w-40`}>
-              <option value="pending" className="bg-slate-900">Pending</option>
-              <option value="approved" className="bg-slate-900">Approved</option>
-              <option value="rejected" className="bg-slate-900">Rejected</option>
-            </select>
+            <select name="status" defaultValue={s.status} className={field + " w-52"}><option value="draft">Draft</option><option value="pending">Submitted</option><option value="under_review">Under review</option><option value="changes_requested">Changes requested</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
             <input type="hidden" name="review_notes" value={s.review_notes ?? ''} />
             <button type="submit" className={btn}>Update status</button>
           </form>
@@ -122,13 +118,13 @@ export default async function SupplierProfile({
       </section>
 
       {/* Tabs */}
-      <nav className="flex gap-2 border-b border-white/10">
+      <nav className="flex gap-2 border-b border-slate-200">
         {TABS.map((t) => (
           <Link
             key={t.key}
             href={`/admin/suppliers/${id}?tab=${t.key}`}
             className={`rounded-t-xl px-5 py-2.5 text-sm font-semibold transition ${
-              tab === t.key ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
+              tab === t.key ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             {t.label}
@@ -141,7 +137,7 @@ export default async function SupplierProfile({
         <form action={save} className={`${card} grid gap-5 md:grid-cols-2`}>
           <Field label="HIS supplier code" className="md:col-span-2">
             <input name="supplier_code" defaultValue={s.supplier_code ?? ''} placeholder="SP00000108 (enter from HIS)" className={`${field} font-mono uppercase`} />
-            {!s.supplier_code && <span className="text-xs text-amber-300">Not assigned yet. Enter it from HIS before approving.</span>}
+            {!s.supplier_code && <span className="text-xs text-amber-700">Not assigned yet. Enter it from HIS before approving.</span>}
           </Field>
           <Field label="Company name" className="md:col-span-2">
             <input name="company_name" required defaultValue={s.company_name} className={field} />
@@ -172,9 +168,9 @@ export default async function SupplierProfile({
           </Field>
           <Field label="Nature of business">
             <select name="business_nature" defaultValue={s.business_nature ?? ''} className={field}>
-              <option value="" className="bg-slate-900">Not set</option>
+              <option value="" className="bg-white">Not set</option>
               {BUSINESS_NATURES.map((b) => (
-                <option key={b} value={b} className="bg-slate-900 capitalize">{b}</option>
+                <option key={b} value={b} className="bg-white capitalize">{b}</option>
               ))}
             </select>
           </Field>
@@ -183,7 +179,7 @@ export default async function SupplierProfile({
           </Field>
           <Field label="ISO 9000 certified">
             <label className="flex items-center gap-2 pt-2 text-sm">
-              <input type="checkbox" name="iso_9000" defaultChecked={s.iso_9000} className="accent-fuchsia-500" />
+              <input type="checkbox" name="iso_9000" defaultChecked={s.iso_9000} className="accent-sky-600" />
               Yes
             </label>
           </Field>
@@ -200,16 +196,16 @@ export default async function SupplierProfile({
             <textarea name="quality_controls" rows={3} defaultValue={s.quality_controls ?? ''} className={field} />
           </Field>
           <div className="md:col-span-2">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Categories</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Categories</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {SUPPLIER_CATEGORIES.map((c) => (
-                <label key={c} className="flex items-start gap-2 rounded-xl border border-white/10 p-3 text-sm text-slate-300 hover:bg-white/5">
+                <label key={c} className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-600 hover:bg-slate-50">
                   <input
                     type="checkbox"
                     name="categories"
                     value={c}
                     defaultChecked={cats.includes(c)}
-                    className="mt-0.5 accent-fuchsia-500"
+                    className="mt-0.5 accent-sky-600"
                   />
                   {c}
                 </label>
@@ -241,36 +237,36 @@ export default async function SupplierProfile({
 
           <section className={card}>
             <h2 className="text-lg font-bold">Import price list</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Excel or CSV. Columns: <span className="text-slate-200">Item Code, Description, Unit, Price</span>. Existing items are kept; new rows are added.
+            <p className="mt-1 text-sm text-slate-500">
+              Excel or CSV. Columns: <span className="text-slate-700">Item Code, Description, Unit, Price</span>. Existing items are kept; new rows are added.
             </p>
             <form action={importList} className="mt-4 flex flex-wrap items-center gap-3">
-              <input type="file" name="file" accept=".xlsx,.xls,.csv" required className="text-sm text-slate-300" />
+              <input type="file" name="file" accept=".xlsx,.xls,.csv" required className="text-sm text-slate-600" />
               <button type="submit" className={btnGhost}>Import</button>
             </form>
           </section>
 
           <section className={`${card} p-0`}>
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h2 className="text-lg font-bold">Items ({items.length})</h2>
               <p className="text-xs text-slate-500">Edits are saved to price history</p>
             </div>
             {items.length === 0 && <p className="px-6 py-12 text-center text-slate-500">No price items yet.</p>}
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-slate-100">
               {items.map((item) => {
                 const update = updateItem.bind(null, id, item.id);
                 const remove = deleteItem.bind(null, id, item.id);
                 return (
                   <div key={item.id} className="flex flex-wrap items-center gap-3 px-6 py-4">
                     <form action={update} className="flex flex-1 flex-wrap items-center gap-2">
-                      <span className="w-24 font-mono text-xs text-cyan-300">{item.his_item_code ?? '—'}</span>
+                      <span className="w-24 font-mono text-xs text-sky-700">{item.his_item_code ?? '—'}</span>
                       <input name="description" defaultValue={item.description} className={`${field} min-w-[220px] flex-1`} />
                       <input name="unit" defaultValue={item.unit} className={`${field} w-24`} />
                       <input name="unit_price" type="number" step="0.01" min="0" defaultValue={item.unit_price} className={`${field} w-36 text-right`} />
                       <button type="submit" className={btn}>Save</button>
                     </form>
                     <form action={remove}>
-                      <button type="submit" className="rounded-xl px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-400/10">Delete</button>
+                      <button type="submit" className="rounded-xl px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">Delete</button>
                     </form>
                     <p className="w-full text-[11px] text-slate-500">Last changed {day(item.updated_at)}</p>
                   </div>
@@ -299,11 +295,11 @@ export default async function SupplierProfile({
                 )}
               </div>
               {d.url && d.mime_type === 'application/pdf' && (
-                <iframe src={d.url} title={d.file_name} className="mt-5 h-[560px] w-full rounded-2xl border border-white/10 bg-white" />
+                <iframe src={d.url} title={d.file_name} className="mt-5 h-[560px] w-full rounded-2xl border border-slate-200 bg-white" />
               )}
               {d.url && d.mime_type.startsWith('image/') && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={d.url} alt={d.file_name} className="mt-5 max-h-[560px] rounded-2xl border border-white/10" />
+                <img src={d.url} alt={d.file_name} className="mt-5 max-h-[560px] rounded-2xl border border-slate-200" />
               )}
             </section>
           ))}

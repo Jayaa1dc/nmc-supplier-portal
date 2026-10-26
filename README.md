@@ -68,3 +68,12 @@ Run it once per branch file. Re-running is safe.
 - Supplier-facing status lookup (code + email, then a one-time link).
 - Automated tests (Playwright for the form, Vitest for `lib/schemas.ts` and `lib/import.ts`).
 - Regenerating Supabase TypeScript types (`supabase gen types typescript`) to replace the untyped client calls.
+
+
+## UI refresh (October 2026)
+
+The admin workspace has been refreshed with a light, enterprise ERP-inspired design: navy navigation, a clean workspace header, responsive KPI cards, clearer form controls, and light status badges. Existing routes, server actions, Supabase data access, supplier registration, review, price list, and import workflows are retained. This is a UI refresh, not an SAP integration.
+
+### Security dependency note
+
+The Next.js dependency is pinned to `15.5.28`, the patched 15.x release for the October 2026 critical security advisories. React and React DOM are pinned to `19.0.9`. After pulling the project, run `npm install` so your local dependency tree and lockfile are regenerated, then run `npm run typecheck` and `npm run build`.

@@ -4,7 +4,7 @@ export const metadata = { title: 'Supplier Pre-Qualification Application' };
 
 export default function RegisterPage() {
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-navy">Supplier Pre-Qualification Application</h1>
         <p className="mt-2 text-sm text-slate-600">

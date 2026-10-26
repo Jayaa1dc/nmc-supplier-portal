@@ -1,3 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root { color-scheme: light; }
+html { background: #f5f7fb; }
+body { margin: 0; }
+.nmc-workspace { background: #f5f7fb; }
+.nmc-sidebar { background: linear-gradient(180deg, #102b4c 0%, #0d2340 100%); }
+::selection { background: rgba(14, 165, 233, .18); }
+body:has(.nmc-workspace) > header { display: none; }
