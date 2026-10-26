@@ -16,6 +16,8 @@ export const DOC_FIELDS = {
   doc_iso_certificate: 'iso_certificate',
   doc_past_experience: 'past_experience',
   doc_deposit_receipt: 'deposit_receipt',
+  doc_price_list: 'price_list',
+  doc_signed_forms: 'signed_form',
 } as const;
 
 export type DocType = (typeof DOC_FIELDS)[keyof typeof DOC_FIELDS];
@@ -26,6 +28,8 @@ export const DOC_LABELS: Record<DocType | 'other', string> = {
   iso_certificate: 'ISO Certificate',
   past_experience: 'Past Experience / Performance Record',
   deposit_receipt: 'Non-refundable Deposit Receipt',
+  price_list: 'Price list (Form 04, Excel / Word / PDF)',
+  signed_form: 'Signed application forms (scanned)',
   other: 'Other',
 };
 
@@ -54,11 +58,6 @@ export const itemSchema = z.object({
 });
 
 export const registrationSchema = z.object({
-  supplier_code: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(HIS_CODE_REGEX, 'HIS supplier code must be SP followed by 8 digits (e.g. SP00000108)'),
   company_name: z.string().trim().min(2, 'Company name is required').max(200),
   head_office_address: z.string().trim().min(5, 'Head office address is required').max(500),
   factory_address: optionalText(500),
@@ -79,7 +78,7 @@ export const registrationSchema = z.object({
   price_validity_until: optionalDate,
   deposit_amount: optionalNumber,
   deposit_receipt_no: optionalText(60),
-  items: z.array(itemSchema).min(1, 'Add at least one item with its price').max(300),
+  items: z.array(itemSchema).max(300),
   declaration: z.literal(true, {
     errorMap: () => ({ message: 'You must accept the declaration' }),
   }),

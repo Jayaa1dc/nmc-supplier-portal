@@ -46,7 +46,7 @@ export async function sendAdminNotification(n: RegistrationNotice) {
   <div style="font-family:Arial,sans-serif;color:#1B2A4A;max-width:720px">
     <h2 style="background:#1B2A4A;color:#fff;padding:14px 18px;margin:0">New Supplier Pre-Qualification</h2>
     <table style="border-collapse:collapse;width:100%;margin-top:12px;font-size:14px">
-      <tr><td style="padding:6px;font-weight:bold;width:200px">HIS Supplier Code</td><td style="padding:6px;font-family:monospace;font-size:16px">${esc(n.supplierCode)}</td></tr>
+      <tr><td style="padding:6px;font-weight:bold;width:200px">Reference</td><td style="padding:6px;font-family:monospace;font-size:16px">${esc(n.supplierCode)}</td></tr>
       <tr><td style="padding:6px;font-weight:bold">Company</td><td style="padding:6px">${esc(n.companyName)}</td></tr>
       <tr><td style="padding:6px;font-weight:bold">Contact person</td><td style="padding:6px">${esc(n.contactPerson)}</td></tr>
       <tr><td style="padding:6px;font-weight:bold">Email</td><td style="padding:6px">${esc(n.email)}</td></tr>

@@ -1,13 +1,15 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { signOut } from '@/app/admin-login/actions';
-import AdminNav from '@/components/AdminNav';
+import { btnGhost } from '@/components/admin-ui';
 
-/**
- * Every page under (admin) passes through here. Authentication is checked by
- * middleware; authorisation (admin_users membership) is checked here and in RLS.
- */
+const NAV = [
+  { href: '/admin', label: 'Directory' },
+  { href: '/admin/import', label: 'Import data' },
+];
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,21 +19,33 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!isAdmin) redirect('/admin-login?error=not_authorised');
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[232px_1fr]">
-      <aside className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-zinc-200 bg-white p-6 lg:flex-col lg:items-stretch lg:gap-8 lg:border-b-0 lg:border-r">
-        <div>
-          <p className="label">NMC</p>
-          <p className="text-lg font-bold tracking-tight">Procurement</p>
-        </div>
-        <AdminNav />
-        <div className="ml-auto flex items-center gap-3 lg:ml-0 lg:mt-auto lg:flex-col lg:items-stretch">
-          <p className="hidden max-w-[10rem] truncate text-xs text-zinc-500 sm:block lg:max-w-none">{user.email}</p>
-          <form action={signOut}>
-            <button type="submit" className="btn-ghost w-full text-xs">Sign out</button>
-          </form>
-        </div>
-      </aside>
-      <main className="page-enter mx-auto w-full min-w-0 max-w-6xl p-6 lg:p-10">{children}</main>
+    <div className="-mx-6 -my-10 min-h-[80vh] bg-slate-950 text-slate-100">
+      <div className="grid lg:grid-cols-[250px_1fr]">
+        <aside className="flex flex-col gap-8 border-b border-white/5 bg-slate-900/60 p-6 lg:border-b-0 lg:border-r">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-fuchsia-300">NMC</p>
+            <p className="text-xl font-extrabold tracking-tight">Procurement</p>
+          </div>
+          <nav className="flex flex-wrap gap-2 lg:flex-col">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="mt-auto space-y-3">
+            <p className="break-all text-xs text-slate-500">{user.email}</p>
+            <form action={signOut}>
+              <button type="submit" className={`${btnGhost} w-full`}>Sign out</button>
+            </form>
+          </div>
+        </aside>
+        <main className="mx-auto w-full max-w-6xl p-6 lg:p-10">{children}</main>
+      </div>
     </div>
   );
 }

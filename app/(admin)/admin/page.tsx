@@ -1,202 +1,120 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { StatusBadge } from '@/components/StatusBadge';
-import GroupTabs from '@/components/GroupTabs';
-import { CATEGORY_GROUPS, findGroup, groupsOf } from '@/components/categoryGroups';
+import { SUPPLIER_CATEGORIES } from '@/lib/categories';
+import { Badge, Kpi, btn, card, field } from '@/components/admin-ui';
 
 const STATUSES = ['pending', 'approved', 'rejected'] as const;
 
-export default async function AdminDashboard({
+export default async function Directory({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; group?: string }>;
+  searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const { q = '', status = '', group = '' } = await searchParams;
+  const { q = '', status = '' } = await searchParams;
   const supabase = await createClient();
-  const activeGroup = findGroup(group);
-
-  // Strip characters that have special meaning inside PostgREST .or() filters.
   const term = q.replace(/[%,()*]/g, '').trim();
 
   let query = supabase
     .from('suppliers')
-    .select('id, supplier_code, company_name, status, source, categories, submitted_at, contact_person, email')
-    .order('submitted_at', { ascending: false })
-    .limit(200);
-
+    .select('id, supplier_code, application_ref, company_name, status, source, categories, branches, contact_person')
+    .order('company_name')
+    .limit(500);
   if (term) query = query.or(`supplier_code.ilike.%${term}%,company_name.ilike.%${term}%`);
   if ((STATUSES as readonly string[]).includes(status)) query = query.eq('status', status);
 
-  const [{ data: found, error }, { data: all }] = await Promise.all([
+  const [{ data: list }, { data: all }, { data: items }] = await Promise.all([
     query,
-    supabase.from('suppliers').select('status, categories'),
+    supabase.from('suppliers').select('id, status, categories'),
+    supabase.from('supplier_items').select('supplier_id'),
   ]);
 
-  // Category names contain commas and brackets, so the group filter is applied here rather than in PostgREST.
-  const suppliers = activeGroup
-    ? found?.filter((s) => (s.categories as string[]).some((c) => activeGroup.categories.includes(c as never)))
-    : found;
+  const itemCounts = new Map<string, number>();
+  items?.forEach((i) => itemCounts.set(i.supplier_id, (itemCounts.get(i.supplier_id) ?? 0) + 1));
 
-  const counts = { pending: 0, approved: 0, rejected: 0 };
-  const coverage = new Map<string, number>(CATEGORY_GROUPS.flatMap((g) => g.categories).map((c) => [c, 0]));
-  const groupStats = new Map(CATEGORY_GROUPS.map((g) => [g.key, { total: 0, approved: 0 }]));
+  const total = all?.length ?? 0;
+  const approved = all?.filter((s) => s.status === 'approved').length ?? 0;
+  const pending = all?.filter((s) => s.status === 'pending').length ?? 0;
+  const withPrices = all?.filter((s) => (itemCounts.get(s.id) ?? 0) > 0).length ?? 0;
+
+  // Categories with at most one approved supplier = single-source exposure
+  const coverage = new Map<string, number>(SUPPLIER_CATEGORIES.map((c) => [c, 0]));
   all?.forEach((s) => {
-    counts[s.status as keyof typeof counts]++;
-    const cats = s.categories as string[];
-    groupsOf(cats).forEach((g) => {
-      const stat = groupStats.get(g.key)!;
-      stat.total++;
-      if (s.status === 'approved') stat.approved++;
-    });
-    if (s.status === 'approved') {
-      cats.forEach((c) => coverage.set(c, (coverage.get(c) ?? 0) + 1));
-    }
+    if (s.status !== 'approved') return;
+    (s.categories as string[]).forEach((c) => coverage.set(c, (coverage.get(c) ?? 0) + 1));
   });
-
-  // Procurement risk rule: a category with at most one approved supplier is single-source exposure.
-  const thinCount = [...coverage].filter(([, n]) => n <= 1).length;
-
-  const href = (next: { status?: string; group?: string }) => {
-    const params = new URLSearchParams();
-    const s = next.status ?? status;
-    const g = next.group ?? group;
-    if (q) params.set('q', q);
-    if (s) params.set('status', s);
-    if (g) params.set('group', g);
-    const qs = params.toString();
-    return qs ? `/admin?${qs}` : '/admin';
-  };
-
-  const tabs = [
-    { key: '', label: 'All', href: href({ group: '' }) || '/admin' },
-    ...CATEGORY_GROUPS.map((g) => ({ key: g.key, label: g.label, href: href({ group: g.key }) })),
-  ];
+  const thin = [...coverage].filter(([, n]) => n <= 1).length;
 
   return (
-    <div className="space-y-10">
-      <header>
-        <p className="label">Overview</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Suppliers</h1>
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Supplier directory</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">All suppliers</h1>
+        </div>
+        <Link href="/admin/import" className={btn}>+ Import data</Link>
       </header>
 
-      <section className="stagger grid gap-4 sm:grid-cols-3">
-        {STATUSES.map((s) => (
-          <Link key={s} href={href({ status: s })} className="lift card block p-5">
-            <p className="label">{s}</p>
-            <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{counts[s]}</p>
-          </Link>
-        ))}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Kpi label="Total suppliers" value={total} />
+        <Kpi label="Approved" value={approved} />
+        <Kpi label="Pending review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
+        <Kpi label="With price list" value={`${withPrices}/${total}`} sub={`${total - withPrices} missing prices`} />
+        <Kpi label="Single-source" value={thin} sub="categories at risk" tone={thin > 0 ? 'bad' : 'default'} />
       </section>
 
-      <section>
-        <h2 className="label mb-4">Groups</h2>
-        <div className="stagger grid gap-4 md:grid-cols-3">
-          {CATEGORY_GROUPS.map((g) => {
-            const stat = groupStats.get(g.key)!;
-            return (
-              <Link key={g.key} href={href({ group: g.key })} className="lift card block p-5">
-                <p className="font-bold">{g.label}</p>
-                <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight">{stat.total}</p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {stat.approved} approved · {g.categories.length} categories
-                </p>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+      <form method="get" className={`${card} flex flex-wrap items-end gap-3`}>
+        <label className="min-w-[260px] flex-1 space-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Search</span>
+          <input name="q" defaultValue={q} placeholder="HIS code or company name" className={field} />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</span>
+          <select name="status" defaultValue={status} className={field}>
+            <option value="">All</option>
+            {STATUSES.map((s) => <option key={s} value={s} className="bg-slate-900 capitalize">{s}</option>)}
+          </select>
+        </label>
+        <button type="submit" className={btn}>Apply</button>
+        <Link href="/admin" className="px-2 py-2 text-sm text-slate-400 hover:text-white">Reset</Link>
+      </form>
 
-      <section className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <GroupTabs tabs={tabs} active={activeGroup?.key ?? ''} />
-          <p className="text-sm text-zinc-500">{suppliers?.length ?? 0} suppliers shown</p>
-        </div>
-
-        <form method="get" className="card flex flex-wrap items-end gap-3 p-4">
-          {activeGroup && <input type="hidden" name="group" value={activeGroup.key} />}
-          <label className="min-w-[260px] flex-1 text-sm">
-            <span className="mb-1.5 block font-medium text-zinc-700">Search by HIS code or company</span>
-            <input name="q" defaultValue={q} placeholder="e.g. SP00000108" className="field font-mono" />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1.5 block font-medium text-zinc-700">Status</span>
-            <select name="status" defaultValue={status} className="field">
-              <option value="">All</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s} className="capitalize">{s}</option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="btn">Filter</button>
-          <Link href="/admin" className="btn-ghost">Reset</Link>
-        </form>
-
-        {error && <p className="text-sm text-red-700">Could not load suppliers: {error.message}</p>}
-
-        <div className="card overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-200 text-sm">
-            <thead className="bg-zinc-50 text-left">
-              <tr className="label">
-                <th className="px-4 py-3 font-semibold">HIS code</th>
-                <th className="px-4 py-3 font-semibold">Company</th>
-                <th className="px-4 py-3 font-semibold">Contact</th>
-                <th className="px-4 py-3 font-semibold">Groups</th>
-                <th className="px-4 py-3 font-semibold">Source</th>
-                <th className="px-4 py-3 font-semibold">Submitted</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
+      <section className={`${card} overflow-x-auto p-0`}>
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 bg-slate-900 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <tr>
+              <th className="px-5 py-4">HIS code</th>
+              <th className="px-5 py-4">Company</th>
+              <th className="px-5 py-4">Branches</th>
+              <th className="px-5 py-4 text-right">Price items</th>
+              <th className="px-5 py-4">Categories</th>
+              <th className="px-5 py-4">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {list?.map((s) => (
+              <tr key={s.id} className="transition hover:bg-white/[0.04]">
+                <td className="px-5 py-4 font-mono">
+                  <Link href={`/admin/suppliers/${s.id}`} className="font-bold text-cyan-300 hover:underline">
+                    {s.supplier_code ?? 'Pending HIS code'}
+                  </Link>
+                </td>
+                <td className="px-5 py-4">
+                  <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-white hover:text-fuchsia-300">
+                    {s.company_name}
+                  </Link>
+                  <p className="text-xs text-slate-500">{s.contact_person ?? ''}</p>
+                </td>
+                <td className="px-5 py-4 text-slate-300">{(s.branches as string[])?.join(', ') || '—'}</td>
+                <td className="px-5 py-4 text-right tabular-nums">{itemCounts.get(s.id) ?? 0}</td>
+                <td className="px-5 py-4 text-slate-400">{(s.categories as string[]).length || '—'}</td>
+                <td className="px-5 py-4"><Badge status={s.status as 'pending' | 'approved' | 'rejected'} /></td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {suppliers?.map((s) => (
-                <tr key={s.id} className="row">
-                  <td className="px-4 py-3 font-mono">
-                    <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-zinc-900 hover:underline">{s.supplier_code}</Link>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{s.company_name}</td>
-                  <td className="px-4 py-3 text-zinc-600">{s.contact_person ?? '—'}<br /><span className="text-xs text-zinc-500">{s.email ?? ''}</span></td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {groupsOf(s.categories as string[]).map((g) => (
-                        <span key={g.key} className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">{g.label}</span>
-                      ))}
-                      {(s.categories as string[]).length === 0 && <span className="text-zinc-400">—</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-zinc-500">{s.source === 'legacy_import' ? 'HIS import' : 'Application'}</td>
-                  <td className="px-4 py-3 text-zinc-600">{s.submitted_at ? new Date(s.submitted_at).toLocaleDateString('en-GB') : '—'}</td>
-                  <td className="px-4 py-3"><StatusBadge status={s.status as 'pending' | 'approved' | 'rejected'} /></td>
-                </tr>
-              ))}
-              {suppliers?.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-zinc-500">No suppliers match your filters.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="card p-6 sm:p-7">
-        <h2 className="font-bold">Category coverage (approved suppliers)</h2>
-        <p className="mt-1 text-xs text-zinc-500">Categories with one or zero approved suppliers are single-source exposure and need a second supplier or a documented contingency plan.</p>
-        <div className="mt-6 space-y-6">
-          {CATEGORY_GROUPS.map((g) => (
-            <div key={g.key}>
-              <h3 className="label">{g.label}</h3>
-              <ul className="mt-2 grid gap-x-8 text-sm sm:grid-cols-2">
-                {g.categories.map((cat) => {
-                  const n = coverage.get(cat) ?? 0;
-                  return (
-                    <li key={cat} className="flex items-center justify-between gap-4 border-b border-zinc-100 py-2">
-                      <span className="text-zinc-700">{cat}</span>
-                      <span className={n <= 1 ? 'font-semibold text-red-600' : 'tabular-nums text-zinc-600'}>{n}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <p className="mt-5 text-xs text-zinc-500">{thinCount} categories flagged for single-source exposure.</p>
+            ))}
+            {list?.length === 0 && (
+              <tr><td colSpan={6} className="px-5 py-16 text-center text-slate-500">No suppliers match. Import a branch list to get started.</td></tr>
+            )}
+          </tbody>
+        </table>
       </section>
     </div>
   );

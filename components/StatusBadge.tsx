@@ -6,7 +6,7 @@ const styles = {
 
 export function StatusBadge({ status }: { status: keyof typeof styles }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${styles[status]}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${styles[status]}`}>
       {status}
     </span>
   );
