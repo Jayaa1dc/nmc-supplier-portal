@@ -58,7 +58,7 @@ export default function RegistrationForm() {
       </div>
 
       {state.message && (
-        <div role="alert" className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           <p className="font-medium">{state.message}</p>
           {state.errors && state.errors.length > 0 && (
             <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -126,7 +126,7 @@ export default function RegistrationForm() {
       {/* 3 — Business profile */}
       <Section title="3. Business profile">
         <fieldset className="md:col-span-2">
-          <legend className="mb-2 text-sm font-medium text-slate-700">You are a *</legend>
+          <legend className="mb-2 text-sm font-medium text-zinc-700">You are a *</legend>
           <div className="flex flex-wrap gap-4">
             {NATURE_OPTIONS.map((opt) => (
               <label key={opt} className="flex items-center gap-2 text-sm capitalize">
@@ -136,7 +136,7 @@ export default function RegistrationForm() {
                   value={opt}
                   required
                   defaultChecked={v.business_nature === opt}
-                  className="accent-navy"
+                  className="accent-zinc-900"
                 />
                 {opt}
               </label>
@@ -145,18 +145,18 @@ export default function RegistrationForm() {
         </fieldset>
 
         <fieldset className="md:col-span-2">
-          <legend className="mb-2 text-sm font-medium text-slate-700">
+          <legend className="mb-2 text-sm font-medium text-zinc-700">
             Categories of items / services * (select all that apply)
           </legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {SUPPLIER_CATEGORIES.map((cat) => (
-              <label key={cat} className="flex items-start gap-2 rounded-md border border-slate-200 p-2 text-sm hover:bg-slate-50">
+              <label key={cat} className="flex items-start gap-2 rounded-xl border border-zinc-200 p-2.5 transition-colors text-sm hover:bg-zinc-50">
                 <input
                   type="checkbox"
                   name="categories"
                   value={cat}
                   defaultChecked={selectedCats.includes(cat)}
-                  className="mt-0.5 accent-navy"
+                  className="mt-0.5 accent-zinc-900"
                 />
                 <span>{cat}</span>
               </label>
@@ -166,7 +166,7 @@ export default function RegistrationForm() {
 
         <Field label="ISO 9000 or other recognised quality certification?">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="iso_9000" defaultChecked={v.iso_9000 === 'on'} className="accent-navy" />
+            <input type="checkbox" name="iso_9000" defaultChecked={v.iso_9000 === 'on'} className="accent-zinc-900" />
             Yes, we hold a current certificate
           </label>
         </Field>
@@ -195,22 +195,22 @@ export default function RegistrationForm() {
       </Section>
 
       {/* 5 — Items & prices */}
-      <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="card p-6 sm:p-7">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-navy">5. Items &amp; price list *</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-base font-semibold text-zinc-900">5. Items &amp; price list *</h2>
+            <p className="mt-1 text-sm text-zinc-500">
               List each item or service with its unit and price. If you know the HIS item code, include it.
             </p>
           </div>
-          <button type="button" onClick={addItem} className="rounded-md border border-navy px-3 py-1.5 text-sm font-medium text-navy hover:bg-navy hover:text-white">
+          <button type="button" onClick={addItem} className="btn-ghost">
             + Add row
           </button>
         </div>
 
         <div className="mt-5 overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
               <tr>
                 <th className="px-2 py-2">#</th>
                 <th className="px-2 py-2">HIS item code</th>
@@ -221,10 +221,10 @@ export default function RegistrationForm() {
                 <th className="px-2 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-zinc-100">
               {items.map((it, idx) => (
                 <tr key={it.key}>
-                  <td className="px-2 py-2 text-slate-500">{idx + 1}</td>
+                  <td className="px-2 py-2 text-zinc-500">{idx + 1}</td>
                   <td className="px-2 py-2">
                     <input value={it.his_item_code} onChange={(e) => updateItem(it.key, { his_item_code: e.target.value })} className={`${inputCls} w-32 font-mono`} />
                   </td>
@@ -251,13 +251,13 @@ export default function RegistrationForm() {
           </table>
         </div>
         <input type="hidden" name="items_json" value={itemsJson} />
-        <p className="mt-3 text-xs text-slate-500">{items.length} item row(s). Attach extra pages if needed.</p>
+        <p className="mt-3 text-xs text-zinc-500">{items.length} item row(s). Attach extra pages if needed.</p>
       </section>
 
       {/* 6 — Documents */}
-      <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-navy">6. Supporting documents</h2>
-        <p className="mt-1 text-sm text-slate-500">PDF, JPG, PNG or WEBP. Maximum 10&nbsp;MB per file.</p>
+      <section className="card p-6 sm:p-7">
+        <h2 className="text-base font-semibold text-zinc-900">6. Supporting documents</h2>
+        <p className="mt-1 text-sm text-zinc-500">PDF, JPG, PNG or WEBP. Maximum 10&nbsp;MB per file.</p>
         <div className="mt-5 grid gap-5 md:grid-cols-2">
           <Field label="Business registration / Certificate of Incorporation *">
             <input type="file" name="doc_business_registration" required accept=".pdf,.jpg,.jpeg,.png,.webp" className="text-sm" />
@@ -278,9 +278,9 @@ export default function RegistrationForm() {
       </section>
 
       {/* 7 — Declaration & submit */}
-      <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <label className="flex items-start gap-3 text-sm text-slate-700">
-          <input type="checkbox" name="declaration" required className="mt-1 accent-navy" />
+      <section className="card p-6 sm:p-7">
+        <label className="flex items-start gap-3 text-sm text-zinc-700">
+          <input type="checkbox" name="declaration" required className="mt-1 accent-zinc-900" />
           <span>
             I declare that the information provided is true and complete. I understand that Nawaloka Medical
             Centre may accept or reject any application, and may discontinue the services of any supplier.
@@ -290,7 +290,7 @@ export default function RegistrationForm() {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-navy px-6 py-2.5 font-semibold text-white hover:bg-navy-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn px-6 py-2.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? 'Submitting…' : 'Submit application'}
           </button>

@@ -12,25 +12,24 @@ export default async function AdminLogin({
 }) {
   const { error } = await searchParams;
   return (
-    <div className="mx-auto mt-10 max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 className="text-lg font-semibold text-navy">Procurement sign-in</h1>
+    <div className="card mx-auto mt-10 max-w-sm p-8">
+      <p className="label">NMC Procurement</p>
+      <h1 className="mt-1 text-xl font-bold tracking-tight">Procurement sign-in</h1>
       {error && MESSAGES[error] && (
-        <p role="alert" className="mt-3 rounded-md bg-rose-50 p-3 text-sm text-rose-800">
+        <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">
           {MESSAGES[error]}
         </p>
       )}
       <form action={signIn} className="mt-6 space-y-4">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Email</span>
-          <input name="email" type="email" required autoComplete="email" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          <span className="mb-1.5 block font-medium text-zinc-700">Email</span>
+          <input name="email" type="email" required autoComplete="email" className="field" />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Password</span>
-          <input name="password" type="password" required autoComplete="current-password" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+          <span className="mb-1.5 block font-medium text-zinc-700">Password</span>
+          <input name="password" type="password" required autoComplete="current-password" className="field" />
         </label>
-        <button type="submit" className="w-full rounded-md bg-navy px-4 py-2.5 font-semibold text-white hover:bg-navy-700">
-          Sign in
-        </button>
+        <button type="submit" className="btn w-full py-2.5">Sign in</button>
       </form>
     </div>
   );
