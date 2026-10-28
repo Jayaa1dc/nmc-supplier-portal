@@ -1,122 +1,174 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { SUPPLIER_CATEGORIES } from '@/lib/categories';
-import { Badge, Kpi, btn, card, field } from '@/components/admin-ui';
+import { Badge, PageHeader, card, field, btn, EmptyState } from '@/components/admin-ui';
+import { CATEGORY_KEYS, CATEGORY_LABEL, isCategory, isUuid } from '@/lib/centres';
 
-const STATUSES = ['pending', 'approved', 'rejected'] as const;
+const STATUSES = ['pending', 'under_review', 'changes_requested', 'approved', 'rejected'] as const;
 
-export default async function Directory({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; status?: string }>;
-}) {
-  const { q = '', status = '' } = await searchParams;
+type SP = { centre?: string; cat?: string; status?: string; q?: string };
+
+export default async function SupplierDirectory({ searchParams }: { searchParams: Promise<SP> }) {
+  const sp = await searchParams;
   const supabase = await createClient();
-  const term = q.replace(/[%,()*]/g, '').trim();
+
+  const term = (sp.q ?? '').replace(/[%,()*]/g, '').trim();
+  const cat = sp.cat && isCategory(sp.cat) ? sp.cat : '';
+  const centreId = sp.centre && isUuid(sp.centre) ? sp.centre : '';
+  const status = (STATUSES as readonly string[]).includes(sp.status ?? '') ? (sp.status as string) : '';
 
   let query = supabase
     .from('suppliers')
-    .select('id, supplier_code, application_ref, company_name, status, source, categories, branches, contact_person')
+    .select('id, supplier_code, application_ref, company_name, status, is_active, contact_person, telephone, email')
     .order('company_name')
-    .limit(500);
-  if (term) query = query.or(`supplier_code.ilike.%${term}%,company_name.ilike.%${term}%`);
-  if ((STATUSES as readonly string[]).includes(status)) query = query.eq('status', status);
+    .limit(1000);
+  if (term) query = query.or(`company_name.ilike.%${term}%,supplier_code.ilike.%${term}%,contact_person.ilike.%${term}%`);
+  if (status) query = query.eq('status', status);
 
-  const [{ data: list }, { data: all }, { data: items }] = await Promise.all([
+  const [{ data: suppliers }, { data: centres }, { data: links }, { data: depts }] = await Promise.all([
     query,
-    supabase.from('suppliers').select('id, status, categories'),
-    supabase.from('supplier_items').select('supplier_id'),
+    supabase.from('centres').select('id, name, code, sort_order').order('sort_order'),
+    supabase.from('supplier_centres').select('supplier_id, centre_id'),
+    supabase.from('supplier_departments').select('supplier_id, dept'),
   ]);
 
-  const itemCounts = new Map<string, number>();
-  items?.forEach((i) => itemCounts.set(i.supplier_id, (itemCounts.get(i.supplier_id) ?? 0) + 1));
+  const centresOf = new Map<string, Set<string>>();
+  (links ?? []).forEach((l) => centresOf.set(l.supplier_id, (centresOf.get(l.supplier_id) ?? new Set()).add(l.centre_id)));
+  const catsOf = new Map<string, Set<string>>();
+  (depts ?? []).forEach((d) => catsOf.set(d.supplier_id, (catsOf.get(d.supplier_id) ?? new Set()).add(d.dept)));
+  const centreName = new Map((centres ?? []).map((c) => [c.id, c.name]));
 
-  const total = all?.length ?? 0;
-  const approved = all?.filter((s) => s.status === 'approved').length ?? 0;
-  const pending = all?.filter((s) => s.status === 'pending').length ?? 0;
-  const withPrices = all?.filter((s) => (itemCounts.get(s.id) ?? 0) > 0).length ?? 0;
+  // Category filter applies to every view
+  const afterCat = (suppliers ?? []).filter((s) => !cat || catsOf.get(s.id)?.has(cat));
 
-  // Categories with at most one approved supplier = single-source exposure
-  const coverage = new Map<string, number>(SUPPLIER_CATEGORIES.map((c) => [c, 0]));
-  all?.forEach((s) => {
-    if (s.status !== 'approved') return;
-    (s.categories as string[]).forEach((c) => coverage.set(c, (coverage.get(c) ?? 0) + 1));
-  });
-  const thin = [...coverage].filter(([, n]) => n <= 1).length;
+  // Counts per centre for the chips
+  const countFor = (cid: string) => afterCat.filter((s) => centresOf.get(s.id)?.has(cid)).length;
+
+  const hrefWith = (over: Partial<SP>) => {
+    const merged: Record<string, string> = { centre: centreId, cat, status, q: term, ...over } as Record<string, string>;
+    const qs = Object.entries(merged).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    return `/admin/suppliers${qs ? `?${qs}` : ''}`;
+  };
+  const chip = (active: boolean) =>
+    `rounded-full px-3.5 py-1.5 text-sm font-medium transition ${active ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50'}`;
+
+  // Row for one supplier. Shown under every centre it belongs to.
+  const row = (s: (typeof afterCat)[number], showCentres: boolean) => (
+    <tr key={`${s.id}-${showCentres ? 'x' : ''}`} className="hover:bg-slate-50">
+      <td className="px-4 py-3 font-mono text-xs">
+        <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-sky-700 hover:underline">{s.supplier_code ?? 'HIS code pending'}</Link>
+      </td>
+      <td className="px-4 py-3">
+        <Link href={`/admin/suppliers/${s.id}`} className="font-medium text-slate-900 hover:text-sky-700">{s.company_name}</Link>
+        <p className="text-xs text-slate-500">{s.contact_person ?? ''}</p>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap gap-1">
+          {[...(centresOf.get(s.id) ?? [])].map((cid) => (
+            <span key={cid} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{centreName.get(cid)}</span>
+          ))}
+          {!(centresOf.get(s.id)?.size) && <span className="text-xs text-slate-400">No centre</span>}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap gap-1">
+          {[...(catsOf.get(s.id) ?? [])].map((d) => (
+            <span key={d} className="rounded-md bg-sky-50 px-2 py-0.5 text-xs text-sky-800">{CATEGORY_LABEL[d as keyof typeof CATEGORY_LABEL]}</span>
+          ))}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-slate-600">{s.telephone ?? '—'}</td>
+      <td className="px-4 py-3"><Badge status={s.status} /></td>
+    </tr>
+  );
+
+  const header = (
+    <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600">
+      <tr>
+        <th className="px-4 py-3">HIS code</th>
+        <th className="px-4 py-3">Supplier</th>
+        <th className="px-4 py-3">Centres</th>
+        <th className="px-4 py-3">Categories</th>
+        <th className="px-4 py-3">Telephone</th>
+        <th className="px-4 py-3">Status</th>
+      </tr>
+    </thead>
+  );
+
+  // Grouped by centre when no centre is chosen; flat list when one is chosen
+  const groups = centreId
+    ? [{ id: centreId, name: centreName.get(centreId) ?? 'Centre', list: afterCat.filter((s) => centresOf.get(s.id)?.has(centreId)) }]
+    : (centres ?? []).map((c) => ({ id: c.id, name: c.name, list: afterCat.filter((s) => centresOf.get(s.id)?.has(c.id)) }));
+  const unassigned = afterCat.filter((s) => !(centresOf.get(s.id)?.size));
 
   return (
-    <div className="space-y-7">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">Procurement overview</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">Supplier directory</h1>
-          <p className="mt-1 text-sm text-slate-500">Review supplier records, qualification status and price-list coverage.</p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader eyebrow="Supplier management" title="Supplier directory">
         <Link href="/admin/import" className={btn}>+ Import data</Link>
-      </header>
+      </PageHeader>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="Total suppliers" value={total} />
-        <Kpi label="Approved" value={approved} />
-        <Kpi label="Pending review" value={pending} tone={pending > 0 ? 'warn' : 'default'} />
-        <Kpi label="With price list" value={`${withPrices}/${total}`} sub={`${total - withPrices} missing prices`} />
-        <Kpi label="Single-source" value={thin} sub="categories at risk" tone={thin > 0 ? 'bad' : 'default'} />
+      <section className={`${card} space-y-4 !p-4`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Centre</span>
+          <Link href={hrefWith({ centre: '' })} className={chip(!centreId)}>All centres ({afterCat.length})</Link>
+          {(centres ?? []).map((c) => (
+            <Link key={c.id} href={hrefWith({ centre: c.id })} className={chip(centreId === c.id)}>
+              {c.name} ({countFor(c.id)})
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Category</span>
+          <Link href={hrefWith({ cat: '' })} className={chip(!cat)}>All</Link>
+          {CATEGORY_KEYS.map((k) => (
+            <Link key={k} href={hrefWith({ cat: k })} className={chip(cat === k)}>{CATEGORY_LABEL[k]}</Link>
+          ))}
+        </div>
+        <form method="get" className="flex flex-wrap items-end gap-3">
+          {centreId && <input type="hidden" name="centre" value={centreId} />}
+          {cat && <input type="hidden" name="cat" value={cat} />}
+          <label className="min-w-[240px] flex-1 space-y-1.5">
+            <span className="text-xs font-semibold text-slate-600">Search</span>
+            <input name="q" defaultValue={term} placeholder="Supplier name, HIS code, contact person" className={field} />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-semibold text-slate-600">Status</span>
+            <select name="status" defaultValue={status} className={field}>
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+            </select>
+          </label>
+          <button type="submit" className={btn}>Apply</button>
+        </form>
       </section>
 
-      <form method="get" className={`${card} flex flex-wrap items-end gap-3`}>
-        <label className="min-w-[260px] flex-1 space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Search</span>
-          <input name="q" defaultValue={q} placeholder="HIS code or company name" className={field} />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</span>
-          <select name="status" defaultValue={status} className={field}>
-            <option value="">All</option>
-            {STATUSES.map((s) => <option key={s} value={s} className="bg-white capitalize">{s}</option>)}
-          </select>
-        </label>
-        <button type="submit" className={btn}>Apply</button>
-        <Link href="/admin" className="px-2 py-2 text-sm text-slate-500 hover:text-slate-900">Reset</Link>
-      </form>
-
-      <section className={`${card} overflow-x-auto p-0`}>
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            <tr>
-              <th className="px-5 py-4">HIS code</th>
-              <th className="px-5 py-4">Company</th>
-              <th className="px-5 py-4">Branches</th>
-              <th className="px-5 py-4 text-right">Price items</th>
-              <th className="px-5 py-4">Categories</th>
-              <th className="px-5 py-4">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {list?.map((s) => (
-              <tr key={s.id} className="transition hover:bg-slate-50">
-                <td className="px-5 py-4 font-mono">
-                  <Link href={`/admin/suppliers/${s.id}`} className="font-bold text-sky-700 hover:underline">
-                    {s.supplier_code ?? 'Pending HIS code'}
-                  </Link>
-                </td>
-                <td className="px-5 py-4">
-                  <Link href={`/admin/suppliers/${s.id}`} className="font-semibold text-slate-900 hover:text-sky-700">
-                    {s.company_name}
-                  </Link>
-                  <p className="text-xs text-slate-500">{s.contact_person ?? ''}</p>
-                </td>
-                <td className="px-5 py-4 text-slate-600">{(s.branches as string[])?.join(', ') || '—'}</td>
-                <td className="px-5 py-4 text-right tabular-nums">{itemCounts.get(s.id) ?? 0}</td>
-                <td className="px-5 py-4 text-slate-500">{(s.categories as string[]).length || '—'}</td>
-                <td className="px-5 py-4"><Badge status={s.status as 'pending' | 'approved' | 'rejected'} /></td>
-              </tr>
-            ))}
-            {list?.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-16 text-center text-slate-500">No suppliers match. Import a branch list to get started.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      {afterCat.length === 0 ? (
+        <EmptyState title="No suppliers match" text="Change the centre, category, status or search. Suppliers appear here from the database." />
+      ) : centreId ? (
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            {header}
+            <tbody className="divide-y divide-slate-100">{(centreId ? groups[0].list : afterCat).map((s) => row(s, true))}</tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.filter((g) => g.list.length).map((g) => (
+            <section key={g.id} className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h2 className="font-semibold text-slate-900">{g.name}</h2>
+                <span className="text-xs text-slate-500">{g.list.length} supplier(s)</span>
+              </div>
+              <table className="min-w-full text-sm">
+                {header}
+                <tbody className="divide-y divide-slate-100">{g.list.map((s) => row(s, true))}</tbody>
+              </table>
+            </section>
+          ))}
+          {unassigned.length > 0 && (
+            <p className="text-xs text-slate-500">{unassigned.length} supplier(s) have no centre yet. Open a supplier profile and tick the centres.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

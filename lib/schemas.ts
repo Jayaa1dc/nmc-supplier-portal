@@ -18,6 +18,7 @@ export const DOC_FIELDS = {
   doc_deposit_receipt: 'deposit_receipt',
   doc_price_list: 'price_list',
   doc_signed_forms: 'signed_form',
+  doc_supplier_agreement: 'supplier_agreement',
 } as const;
 
 export type DocType = (typeof DOC_FIELDS)[keyof typeof DOC_FIELDS];
@@ -30,6 +31,7 @@ export const DOC_LABELS: Record<DocType | 'other', string> = {
   deposit_receipt: 'Non-refundable Deposit Receipt',
   price_list: 'Price list (Form 04, Excel / Word / PDF)',
   signed_form: 'Signed application forms (scanned)',
+  supplier_agreement: 'Supplier agreement',
   other: 'Other',
 };
 
