@@ -2,10 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
 html { background: #f5f7fb; }
 body { margin: 0; }
 .nmc-workspace { background: #f5f7fb; }
 .nmc-sidebar { background: linear-gradient(180deg, #102b4c 0%, #0d2340 100%); }
 ::selection { background: rgba(14, 165, 233, .18); }
 body:has(.nmc-workspace) > header { display: none; }
+
+/* ---------- Sinhala text ---------- */
+.si {
+  font-family: var(--font-sinhala), 'Iskoola Pota', 'Nirmala UI', 'Noto Sans Sinhala', sans-serif;
+  line-height: 1.75;
+}
+
+/* ---------- Public pages: motion ----------
+   Entrance runs once on first view. It uses `translate` / `scale` (not `transform`)
+   so hover and press transforms stay free, and `backwards` fill so nothing is
+   left forced after the animation ends. */
+@keyframes rise-in {
+  from { opacity: 0; translate: 0 14px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+@keyframes logo-in {
+  from { opacity: 0; scale: 0.96; }
+  to   { opacity: 1; scale: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.rise {
+  animation: rise-in 380ms var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.logo-in { animation: logo-in 420ms var(--ease-out) backwards; }
+
+.press {
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+.press:active { transform: scale(0.97); }
+.lift-card {
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out);
+}
+.arrow { display: inline-block; transition: translate 200ms var(--ease-out); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lift-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -14px rgba(15, 23, 42, .25); border-color: #cbd5e1; }
+  .press:hover .arrow { translate: 4px 0; }
+}
+
+/* Reduced motion: keep a gentle fade, drop all movement */
+@media (prefers-reduced-motion: reduce) {
+  .rise, .logo-in { animation: fade-in 200ms linear backwards; animation-delay: 0ms; }
+  .lift-card, .press, .arrow { transition-duration: 1ms; }
+  .lift-card:hover { transform: none; }
+  .press:hover .arrow { translate: 0 0; }
+}
