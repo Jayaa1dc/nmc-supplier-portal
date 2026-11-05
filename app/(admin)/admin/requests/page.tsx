@@ -41,7 +41,9 @@ export default async function Requests({
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Approval workflow" title="Supplier requests" />
+      <PageHeader eyebrow="Approval workflow" title="Supplier requests">
+        <Link href="/admin/requests/import" className={btn}>Import from PDF</Link>
+      </PageHeader>
 
       {sp.ok && <Banner tone="ok">{sp.ok}</Banner>}
       {sp.err && <Banner tone="err">{sp.err}</Banner>}
