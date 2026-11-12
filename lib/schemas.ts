@@ -30,7 +30,7 @@ export const DOC_LABELS: Record<DocType | 'other', string> = {
   past_experience: 'Past Experience / Performance Record',
   deposit_receipt: 'Non-refundable Deposit Receipt',
   price_list: 'Price list (Form 04, Excel / Word / PDF)',
-  signed_form: 'Signed application forms (scanned)',
+  signed_form: 'Filled / signed application forms',
   supplier_agreement: 'Supplier agreement',
   other: 'Other',
 };

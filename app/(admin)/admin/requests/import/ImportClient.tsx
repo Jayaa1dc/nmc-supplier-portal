@@ -53,7 +53,7 @@ export default function ImportClient({ centres, aiReady }: { centres: Centre[]; 
       {err && <Banner tone="err">{err}</Banner>}
       {!aiReady && (
         <Banner tone="err">
-          AI reading of scans is not switched on (ANTHROPIC_API_KEY is not set in Vercel). Fillable PDFs from the NMC form pack can still be read. Scans and photos cannot until it is set.
+          AI reading of scans is not switched on (GEMINI_API_KEY is not set in Vercel). Fillable PDFs from the NMC form pack can still be read. Scans and photos cannot until it is set.
         </Banner>
       )}
       <form onSubmit={onRead} className={`${card} space-y-4`}>

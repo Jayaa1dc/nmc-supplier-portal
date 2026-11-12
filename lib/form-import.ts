@@ -71,9 +71,12 @@ export async function readFillable(bytes: Uint8Array): Promise<Draft | null> {
 
   const a = d.answers;
   const set = (k: string, v: string | undefined) => { if (v && v.trim()) a[k] = v.trim(); };
-  set('intended_category', first(t.intended_category, t.categories));
+  set('telephone_factory', t.telephone_factory);
+  set('intended_category', t.intended_category);
   set('business_reg_no', t.business_reg_no);
-  set('principal_line_of_business', first(t.principal_line_of_business, t.nature_of_business));
+  set('nature_of_business', t.nature_of_business);
+  set('principal_line_of_business', t.principal_line_of_business);
+  set('ltd_company', t.ltd_company);
   set('ltd_directors', t.ltd_directors);
   set('partners', t.partners);
   set('bankers', t.bankers);
@@ -100,7 +103,6 @@ export async function readFillable(bytes: Uint8Array): Promise<Draft | null> {
   for (let i = 1; i <= 26; i++) {
     if (t[`price_item_${i}`]) d.price_rows.push({ category: t[`price_category_${i}`] ?? '', item: t[`price_item_${i}`], price: num(t[`price_value_${i}`]) });
   }
-  if (t.telephone_factory) d.notes.push(`Factory telephone: ${t.telephone_factory}`);
   d.notes.unshift('Read directly from the PDF form fields (no AI used). Values are exactly what the supplier typed.');
   return d;
 }
@@ -121,7 +123,7 @@ const TOOL = {
       business_nature: { type: 'string', enum: ['manufacturer', 'wholesaler', 'stockist', 'retailer', ''] },
       iso_registered: { type: 'string', enum: ['yes', 'no', 'unclear'] },
       intended_category: str, business_reg_no: str, nature_of_business: str, principal_line_of_business: str,
-      ltd_directors: str, partners: str, bankers: str,
+      ltd_company: str, ltd_directors: str, partners: str, bankers: str,
       vat_registered: { type: 'string', enum: ['yes', 'no', 'unclear'] },
       credit_period: str, completed_by: str, completed_position: str, completed_date: str,
       cash_receipt_no: str, amount: str,
@@ -156,44 +158,87 @@ Rules:
 - List in pages_missing any form pages that are not in the file (for example questionnaire page 2 or Form 04).
 - Put every doubt, conflict, or odd thing in notes. Keep each note short.`;
 
+export type AiProvider = 'gemini' | 'anthropic';
+export function aiProvider(): AiProvider | null {
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  return null;
+}
 export function aiReady(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return aiProvider() !== null;
 }
 
+type Obj = Record<string, unknown>;
+
 export async function readWithAI(bytes: Uint8Array, mime: string): Promise<Draft> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error('AI reading is not set up. Add ANTHROPIC_API_KEY in Vercel.');
-  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+  const provider = aiProvider();
+  if (!provider) throw new Error('AI reading is not set up. Add GEMINI_API_KEY in Vercel.');
   const data = Buffer.from(bytes).toString('base64');
+  const raw = provider === 'gemini' ? await callGemini(data, mime) : await callAnthropic(data, mime);
+  return fromAI(raw);
+}
+
+async function callAnthropic(data: string, mime: string): Promise<Obj> {
+  const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
   const block =
     mime === 'application/pdf'
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
       : { type: 'image', source: { type: 'base64', media_type: mime, data } };
-
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model,
-      max_tokens: 6000,
-      system: SYSTEM,
-      tools: [TOOL],
-      tool_choice: { type: 'tool', name: 'record_form' },
+      model, max_tokens: 6000, system: SYSTEM, tools: [TOOL], tool_choice: { type: 'tool', name: 'record_form' },
       messages: [{ role: 'user', content: [block, { type: 'text', text: 'Read every page of this supplier form and record it with the record_form tool.' }] }],
     }),
     signal: AbortSignal.timeout(55_000),
   });
-  if (!res.ok) {
-    const body = (await res.text()).slice(0, 200);
-    throw new Error(`The AI service returned an error (${res.status}). ${body}`);
-  }
-  const json = (await res.json()) as { content?: { type: string; input?: Record<string, unknown> }[] };
+  if (!res.ok) throw new Error(`The AI service returned an error (${res.status}). ${(await res.text()).slice(0, 200)}`);
+  const json = (await res.json()) as { content?: { type: string; input?: Obj }[] };
   const tool = json.content?.find((c) => c.type === 'tool_use');
   if (!tool?.input) throw new Error('The AI service did not return a result. Try again.');
-  return fromAI(tool.input);
+  return tool.input;
 }
 
-type Obj = Record<string, unknown>;
+// Gemini wants OpenAPI-style upper-case types and rejects some JSON-schema keywords
+function toGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (node && typeof node === 'object') {
+    const o = node as Obj;
+    const out: Obj = {};
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'minimum' || k === 'maximum') continue;
+      if (k === 'enum' && Array.isArray(v) && v.includes('')) continue; // empty option is handled when normalising
+      out[k] = k === 'type' && typeof v === 'string' ? v.toUpperCase() : toGeminiSchema(v);
+    }
+    return out;
+  }
+  return node;
+}
+
+async function callGemini(data: string, mime: string): Promise<Obj> {
+  const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime, data } }, { text: 'Read every page of this supplier form and return the JSON.' }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json', responseSchema: toGeminiSchema(TOOL.input_schema) },
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+  if (!res.ok) throw new Error(`The AI service returned an error (${res.status}). Check GEMINI_API_KEY and GEMINI_MODEL. ${(await res.text()).slice(0, 200)}`);
+  const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; promptFeedback?: { blockReason?: string } };
+  const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  if (!text) throw new Error(`The AI service returned nothing${json.promptFeedback?.blockReason ? ` (${json.promptFeedback.blockReason})` : ''}. Try again.`);
+  try {
+    return JSON.parse(text) as Obj;
+  } catch {
+    throw new Error('The AI service returned an unreadable result. Try again.');
+  }
+}
+
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 export function fromAI(raw: Obj): Draft {
@@ -213,7 +258,6 @@ export function fromAI(raw: Obj): Draft {
   d.business_nature = NATURES.includes(bn) ? bn : '';
   d.deposit_receipt_no = s('cash_receipt_no');
   d.deposit_amount = num(s('amount'));
-  if (s('telephone_factory')) notes.push(`Factory telephone written: ${s('telephone_factory')}`);
 
   const iso = s('iso_registered');
   d.iso_9000 = iso === 'yes';
@@ -221,13 +265,12 @@ export function fromAI(raw: Obj): Draft {
 
   const a = d.answers;
   const set = (k: string, v: string) => { if (v) a[k] = v; };
+  set('telephone_factory', s('telephone_factory'));
   set('intended_category', s('intended_category'));
   set('business_reg_no', s('business_reg_no'));
-  if (s('principal_line_of_business')) set('principal_line_of_business', s('principal_line_of_business'));
-  else if (s('nature_of_business')) {
-    set('principal_line_of_business', s('nature_of_business'));
-    notes.push('"Principal line of business" was blank; used "Nature of business" as written.');
-  }
+  set('nature_of_business', s('nature_of_business'));
+  set('principal_line_of_business', s('principal_line_of_business'));
+  set('ltd_company', s('ltd_company'));
   set('ltd_directors', s('ltd_directors'));
   set('partners', s('partners'));
   set('bankers', s('bankers'));

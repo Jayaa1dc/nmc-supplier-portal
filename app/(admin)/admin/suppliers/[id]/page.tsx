@@ -307,6 +307,7 @@ export default async function SupplierProfile({
             <select name="doc_type" required className={field}>
               <option value="business_registration">Business registration</option>
               <option value="supplier_agreement">Supplier agreement</option>
+              <option value="signed_form">Filled application form (PDF form pack)</option>
               <option value="other">Other supplier document</option>
             </select>
             <input name="expires_on" type="date" className={field} aria-label="Expiry date (optional)" />

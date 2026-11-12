@@ -75,6 +75,16 @@ export default function Home() {
             </span>
             <span className="arrow text-2xl" aria-hidden="true">→</span>
           </Link>
+          <a
+            href="/forms/NMC_Supplier_Registration_Form_Fillable.pdf"
+            download
+            className="press mt-7 ml-0 inline-flex items-center gap-3 rounded-2xl border border-slate-300 bg-white px-6 py-4 text-slate-900 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-500/30 sm:ml-3"
+          >
+            <span className="text-left">
+              <span className="block text-lg font-bold leading-tight">Download the form (PDF)</span>
+              <span className="si block text-sm font-medium text-slate-700" lang="si">ආකෘති පත්‍රය බාගන්න (PDF)</span>
+            </span>
+          </a>
         </div>
       </section>
 

@@ -23,13 +23,29 @@ const str = (fd: FormData, key: string) => {
 };
 const trimmed = (fd: FormData, key: string) => (str(fd, key) ?? '').trim();
 
-function parseItems(json?: string) {
-  try {
-    const parsed = JSON.parse(json ?? '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+/** First number in text such as "Rs. 1,850.50" -> "1850.50" (left as typed when there is no number, so validation can flag it) */
+const numOnly = (v?: string) => {
+  const t = (v ?? '').trim();
+  return t.replace(/,/g, '').match(/\d+(?:\.\d+)?/)?.[0] ?? t;
+};
+
+/** Form 04 rows: ITEM / CATEGORY, ITEM, PRICE (26 lines on the paper form) */
+function buildItems(fd: FormData) {
+  const out: { his_item_code: string; description: string; brand: string; unit: string; unit_price: string }[] = [];
+  for (let i = 1; i <= 26; i++) {
+    const cat = trimmed(fd, `price_category_${i}`);
+    const item = trimmed(fd, `price_item_${i}`);
+    const price = trimmed(fd, `price_value_${i}`);
+    if (!cat && !item && !price) continue;
+    out.push({
+      his_item_code: '',
+      description: item && cat ? `${item} (${cat})` : item || cat,
+      brand: '',
+      unit: 'Each',
+      unit_price: numOnly(price),
+    });
   }
+  return out;
 }
 
 /** PDF answers that have no dedicated column, stored in suppliers.application */
@@ -78,17 +94,17 @@ export async function submitRegistration(
     fax: str(formData, 'fax'),
     email: str(formData, 'email'),
     contact_person: str(formData, 'contact_person'),
-    contact_title: str(formData, 'contact_title'),
+    contact_title: str(formData, 'contact_title') ?? str(formData, 'completed_position'),
     business_nature: str(formData, 'business_nature'),
     categories: formData.getAll('categories').map(String),
-    iso_9000: formData.get('iso_9000') === 'on',
+    iso_9000: formData.get('iso_registered') === 'yes',
     iso_certificate_no: str(formData, 'iso_certificate_no'),
     production_capacity: str(formData, 'production_capacity'),
     quality_controls: undefined,
     price_validity_until: str(formData, 'price_validity_until'),
-    deposit_amount: str(formData, 'deposit_amount'),
+    deposit_amount: numOnly(str(formData, 'deposit_amount')),
     deposit_receipt_no: str(formData, 'deposit_receipt_no'),
-    items: parseItems(str(formData, 'items_json')),
+    items: buildItems(formData),
     declaration: formData.get('declaration') === 'on',
   });
 
@@ -138,7 +154,7 @@ export async function submitRegistration(
     })),
   ];
   if (allItems.length === 0) {
-    return fail('Add at least one price item in Form 04, or upload a price list file.');
+    return fail('Please fill in Form 04 (Item / Category, Item, Price), or attach your price list file.');
   }
   if (allItems.length > 500) return fail('A price list can have at most 500 items.');
 

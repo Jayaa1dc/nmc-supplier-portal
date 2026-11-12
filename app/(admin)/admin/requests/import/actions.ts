@@ -66,7 +66,7 @@ export async function extractFromStored(path: string, name: string): Promise<Ext
   let draft = mime === 'application/pdf' ? await readFillable(bytes) : null;
   if (!draft) {
     if (!aiReady()) {
-      return { ok: false, error: 'This looks like a scan or photo. AI reading is not switched on yet (ANTHROPIC_API_KEY is missing in Vercel). Fillable PDFs from the NMC form pack still work.' };
+      return { ok: false, error: 'This looks like a scan or photo. AI reading is not switched on yet (GEMINI_API_KEY is missing in Vercel). Fillable PDFs from the NMC form pack still work.' };
     }
     try {
       draft = await readWithAI(bytes, mime);

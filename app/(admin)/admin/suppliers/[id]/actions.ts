@@ -256,7 +256,7 @@ export async function importPriceList(id: string, formData: FormData): Promise<v
 
 // ---------- C. Documents ----------
 
-const UPLOAD_TYPES = ['business_registration', 'supplier_agreement', 'other'] as const;
+const UPLOAD_TYPES = ['business_registration', 'supplier_agreement', 'signed_form', 'other'] as const;
 const safeName = (n: string) => n.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
 
 export async function uploadDocument(id: string, formData: FormData): Promise<void> {
